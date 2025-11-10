@@ -53,6 +53,18 @@ class WC_Backorder_Split_Tracker {
 	 */
 	public static function send_tracking_deactivation() {
 
+		// Verify nonce for security
+		if ( ! check_ajax_referer( 'wc_backorder_split_deactivation_nonce', 'nonce', false ) ) {
+			wp_send_json_error( array( 'error' => __( 'Security check failed. Please try again.', 'wc-backorder-split' ) ) );
+			wp_die();
+		}
+
+		// Check user capabilities
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'error' => __( 'Insufficient permissions.', 'wc-backorder-split' ) ) );
+			wp_die();
+		}
+
 		if ( empty( $_POST['deactivation_domain'] ) ) {
 			wp_send_json_error( array( 'error' => __( 'Something went wrong. Please try again later.', 'wc-backorder-split' ) ) );
 			wp_die( -1 );
@@ -194,6 +206,8 @@ class WC_Backorder_Split_Tracker {
 					<input type="hidden" name="deactivation_license_key" value="<?php echo esc_attr( $license_key ); ?>">
 
 					<input type="hidden" name="email" value="<?php echo esc_attr( $license_email ); ?>">
+					
+					<?php wp_nonce_field( 'wc_backorder_split_deactivation_nonce', 'nonce' ); ?>
 				</div>
 
 				<div class="<?php echo esc_attr( self::$deactivation_modal ); ?>-footer">
@@ -306,6 +320,7 @@ class WC_Backorder_Split_Tracker {
 						var $deactivation_domain = $( 'input[name="deactivation_domain"]', modal );
 						var $deactivation_license_key = $( 'input[name="deactivation_license_key"]', modal );
 						var $deactivation_email = $( 'input[name="email"]', modal );
+						var $nonce = $( 'input[name="nonce"]', modal );
 
 						var $selected_reason = $radio.parents('li:first'),
 							$input = $selected_reason.find('textarea, input[type="text"]');
@@ -320,6 +335,7 @@ class WC_Backorder_Split_Tracker {
 								deactivation_domain: ( 0 !== $deactivation_domain.length ) ? $deactivation_domain.val().trim() : '',
 								deactivation_license_key: ( 0 !== $deactivation_license_key.length ) ? $deactivation_license_key.val().trim() : '',
 								deactivation_email: ( 0 !== $deactivation_email.length ) ? $deactivation_email.val().trim() : '',
+								nonce: ( 0 !== $nonce.length ) ? $nonce.val() : '',
 							},
 							beforeSend: function() {
 								button.addClass('disabled');

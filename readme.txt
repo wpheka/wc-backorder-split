@@ -1,9 +1,9 @@
 ﻿=== WC Backorder Split ===
-Contributors: akshayaswaroop, wpheka
+Contributors: wpheka, akshayaswaroop
 Tags: wc backorder split, backorder, backorder split, order split, split
 Requires at least: 4.9
-Tested up to: 6.8.1
-Stable tag: 1.9
+Tested up to: 6.8.3
+Stable tag: 2.0
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 Donate link: https://www.paypal.me/AKSHAYASWAROOP
@@ -35,6 +35,20 @@ If you enjoyed this plugin then please put a review, that will encourage me to b
 1. WooCommerce orders admin.
 
 == Changelog ==
+
+= 2.0 - 2025-11-10 =
+* Security - Added CSRF protection with nonce validation for AJAX requests.
+* Security - Added capability checks for admin operations.
+* Security - Enhanced input validation and sanitization.
+* Enhancement - Improved error handling with try-catch blocks and logging.
+* Enhancement - Added comprehensive PHPDoc documentation.
+* Enhancement - Optimized performance by loading admin styles only on relevant pages.
+* Enhancement - Improved database query efficiency using specific item types.
+* Enhancement - Enhanced product and order validation throughout the codebase.
+* Enhancement - Added detailed error logging for debugging and monitoring.
+* Fix - Fixed class reference in singleton pattern documentation.
+* Fix - Improved code structure and readability.
+* Tweak - Maintained full HPOS (High-Performance Order Storage) compatibility.
 
 = 1.9 - 2025-05-14 =
 * Enhancement - WooCommerce Version 9.8.5 compatibility added.

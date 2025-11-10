@@ -19,7 +19,7 @@ class WC_Backorder_Split
      *
      * @var string
      */
-    public $version = '1.9';
+    public $version = '2.0';
 
     /**
      * Min WC required version.
@@ -38,7 +38,7 @@ class WC_Backorder_Split
     /**
      * The single instance of the class.
      *
-     * @var WC_Product_Price_Based_Country
+     * @var WC_Backorder_Split
      */
     protected static $_instance = null;
 
