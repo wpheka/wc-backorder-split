@@ -2,7 +2,7 @@
 /**
  * WC Backorder Split Register
  *
- * @version 1.4
+ * @version 2.1.0
  * @package WCBS
  */
 
@@ -17,7 +17,9 @@ class WC_Backorder_Split_Register
 {
 
     /**
-     * Hook actions and filters
+     * Hook actions and filters to register custom order status.
+     *
+     * @since 1.0.0
      */
     public static function init()
     {
@@ -31,10 +33,11 @@ class WC_Backorder_Split_Register
     }
 
     /**
-     * Add new order status in WC
+     * Add backorder status to list of order statuses.
      *
-     * @param array $order_statuses Order Stauses.
-     * @return array
+     * @since 1.0.0
+     * @param array $order_statuses Existing order statuses
+     * @return array Modified order statuses
      */
     public static function wcbs_add_backorder_order_status($order_statuses)
     {
@@ -43,10 +46,11 @@ class WC_Backorder_Split_Register
     }
 
     /**
-     * Register new order status in WC
+     * Register backordered order status with WordPress.
      *
-     * @param array $order_statuses Order Stauses.
-     * @return array
+     * @since 1.0.0
+     * @param array $order_statuses Existing order statuses
+     * @return array Modified order statuses with backorder status registered
      */
     public static function wcbs_register_new_order_status($order_statuses)
     {
@@ -64,15 +68,16 @@ class WC_Backorder_Split_Register
     }
 
     /**
-     * Add new order status in bulk actions (Order's Listing)
+     * Add backorder status to bulk actions dropdown.
      *
-     * @param array $bulk_actions Bulk Actions.
-     * @return array
+     * @since 1.0.0
+     * @param array $bulk_actions Existing bulk actions
+     * @return array Modified bulk actions
      */
     public static function wcbs_get_custom_order_status_bulk($bulk_actions)
     {
         // Note: "mark_" must be there instead of "wc".
-        $bulk_actions['mark_backordered'] = 'Change status to backordered';
+        $bulk_actions['mark_backordered'] = __('Change status to backordered', 'wc-backorder-split');
         return $bulk_actions;
     }
 }

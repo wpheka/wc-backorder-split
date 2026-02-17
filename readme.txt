@@ -1,9 +1,11 @@
 ﻿=== WC Backorder Split ===
 Contributors: wpheka, akshayaswaroop
 Tags: wc backorder split, backorder, backorder split, order split, split
-Requires at least: 4.9
-Tested up to: 6.8.3
-Stable tag: 2.0
+Requires at least: 5.0
+Tested up to: 6.9.1
+WC requires at least: 4.2
+WC tested up to: 10.5.2
+Stable tag: 2.1.0
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 Donate link: https://www.paypal.me/AKSHAYASWAROOP
@@ -11,7 +13,29 @@ Donate link: https://www.paypal.me/AKSHAYASWAROOP
 A simple plugin that helps you split the WooCommerce order for the products that you do not have in stock.
 
 == Description ==
-WC Backorder Split is a free WooCommerce extension that **automatically** creates a separate order with status "Backordered" for the products that you don't have in stock(Products on backorder).
+WC Backorder Split is a free WooCommerce extension that **automatically** creates a separate order with status "Backordered" for the products that you don't have in stock (Products on backorder).
+
+= Key Features =
+
+* **Automatic Order Splitting** - Automatically splits orders when products are on backorder
+* **Complete Order Data Transfer** - Copies shipping methods, payment info, fees, coupons and taxes to backorder
+* **Order Relationship Tracking** - Links parent and backorder orders for easy reference
+* **Custom Order Status** - Adds "Backordered" status to WooCommerce
+* **Order Notes** - Automatically adds notes explaining the split to both orders
+* **Admin Interface** - Shows linked orders directly in order details page
+* **HPOS Compatible** - Full support for WooCommerce High-Performance Order Storage
+* **Developer Friendly** - Extensive hooks and filters for customization
+
+= Developer Features =
+
+Developers can extend the plugin using built-in hooks:
+
+* `wcbs_before_split_order` - Action before order splitting
+* `wcbs_after_split_order` - Action after order splitting
+* `wcbs_backorder_created` - Action when backorder is created
+* `wcbs_should_split_order` - Filter to prevent splitting
+* `wcbs_backorder_items` - Filter to modify backorder items
+* `wcbs_backorder_status` - Filter to change backorder status
 
 If you enjoyed this plugin then please put a review, that will encourage me to bring some more …
 
@@ -35,6 +59,26 @@ If you enjoyed this plugin then please put a review, that will encourage me to b
 1. WooCommerce orders admin.
 
 == Changelog ==
+
+= 2.1.0 - 2026-02-17 =
+* Security - Fixed unsanitized $_SERVER['REQUEST_URI'] access in REST API detection.
+* Enhancement - Added comprehensive order data copying: shipping methods, payment info, fees, coupons, and taxes.
+* Enhancement - Added order relationship linking between parent order and backorder.
+* Enhancement - Added order notes to both orders explaining the split operation.
+* Enhancement - Added admin panel display showing linked orders in order details.
+* Enhancement - Added developer hooks for extensibility (wcbs_before_split_order, wcbs_after_split_order, wcbs_backorder_created, wcbs_split_order_error).
+* Enhancement - Added filter hooks for customization (wcbs_should_split_order, wcbs_backorder_items, wcbs_backorder_status).
+* Enhancement - Improved item meta data copying during split to preserve product variations and custom data.
+* Enhancement - Added comprehensive PHPDoc documentation with @since tags throughout codebase.
+* Fix - Critical: Added protection against duplicate order splits on page reload.
+* Fix - Fixed fatal error "Call to a member function save() on int" when copying item meta data.
+* Fix - Fixed order splitting logic to work correctly when product stock status is already 'onbackorder'.
+* Fix - Removed unnecessary is_on_backorder() check that prevented stock quantity tracking.
+* Fix - Properly retrieve order item objects after add_product() to enable meta data copying.
+* Fix - Updated version number consistency across all plugin files.
+* Fix - Updated @version tags in PHPDoc blocks to reflect current version.
+* Fix - Made bulk action text translatable for better localization support.
+* Fix - Added return value to is_request() method for better error handling.
 
 = 2.0 - 2025-11-10 =
 * Security - Added CSRF protection with nonce validation for AJAX requests.

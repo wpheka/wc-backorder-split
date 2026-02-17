@@ -3,7 +3,7 @@
  * WC Backorder Split main class
  *
  * @package WCBS
- * @version 1.4
+ * @version 2.1.0
  */
 
 defined('ABSPATH') || exit;
@@ -19,7 +19,7 @@ class WC_Backorder_Split
      *
      * @var string
      */
-    public $version = '2.0';
+    public $version = '2.1.0';
 
     /**
      * Min WC required version.
@@ -45,9 +45,12 @@ class WC_Backorder_Split
     /**
      * Main WC_Backorder_Split Instance
      *
+     * Ensures only one instance of WC_Backorder_Split is loaded or can be loaded.
+     *
+     * @since 1.0.0
      * @static
      * @see WCBS()
-     * @return WC_Backorder_Split
+     * @return WC_Backorder_Split Main instance
      */
     public static function instance()
     {
@@ -60,7 +63,8 @@ class WC_Backorder_Split
     /**
      * Get the plugin url.
      *
-     * @return string
+     * @since 1.0.0
+     * @return string Plugin URL
      */
     public function plugin_url()
     {
@@ -70,7 +74,8 @@ class WC_Backorder_Split
     /**
      * Get the plugin path.
      *
-     * @return string
+     * @since 1.0.0
+     * @return string Plugin path
      */
     public function plugin_path()
     {
@@ -80,8 +85,8 @@ class WC_Backorder_Split
     /**
      * Return the plugin base name
      *
-     * @return string
-     * @since 1.4
+     * @since 1.4.0
+     * @return string Plugin basename
      */
     public function plugin_basename()
     {
@@ -90,6 +95,8 @@ class WC_Backorder_Split
 
     /**
      * WC_Backorder_Split Constructor.
+     *
+     * @since 1.0.0
      */
     public function __construct()
     {
@@ -102,6 +109,8 @@ class WC_Backorder_Split
 
     /**
      * Include required files used in admin and on the frontend.
+     *
+     * @since 1.0.0
      */
     private function includes()
     {
@@ -116,9 +125,9 @@ class WC_Backorder_Split
     }
 
     /**
-     * Localisation
+     * Load plugin text domain for translations.
      *
-     * @since 1.4
+     * @since 1.4.0
      */
     public function load_textdomain()
     {
@@ -128,10 +137,10 @@ class WC_Backorder_Split
     /**
      * Show row meta on the plugin screen.
      *
-     * @since 1.4
-     * @param mixed $links Plugin Row Meta.
-     * @param mixed $file  Plugin Base file.
-     * @return array
+     * @since 1.4.0
+     * @param array $links Plugin Row Meta
+     * @param string $file Plugin Base file
+     * @return array Modified links
      */
     public function plugin_row_meta($links, $file)
     {
@@ -150,18 +159,19 @@ class WC_Backorder_Split
     /**
      * Checks the environment for compatibility problems.
      *
-     * @return boolean
+     * @since 1.0.0
+     * @return bool True if environment is compatible, false otherwise
      */
     private function check_environment()
     {
         if (!defined('WC_VERSION')) {
             // translators: HTML Tags.
-            $this->environment_alert = sprintf(__('%1$sWC Backorder Split%2$s requires WooCommerce to be activated to work.', 'wc-backorder-split'), '<strong>', '</strong>', '</a>');
+            $this->environment_alert = sprintf(__('%1$sWC Backorder Split%2$s requires WooCommerce to be activated to work.', 'wc-backorder-split'), '<strong>', '</strong>');
             return false;
         }
 
         if (version_compare(WC_VERSION, $this->min_wc_version, '<')) {
-            // translators: HTML Tags.
+            // translators: %1$s: minimum WooCommerce version, %2$s: current WooCommerce version
             $this->environment_alert = sprintf(__('The minimum WooCommerce version required for this plugin is %1$s. You are running %2$s.', 'wc-backorder-split'), $this->min_wc_version, WC_VERSION);
             return false;
         }
@@ -172,7 +182,8 @@ class WC_Backorder_Split
     /**
      * Returns true if the request is a non-legacy REST API request.
      *
-     * @return bool
+     * @since 1.0.0
+     * @return bool True if REST API request, false otherwise
      */
     public function is_rest_api_request()
     {
@@ -181,7 +192,8 @@ class WC_Backorder_Split
         }
 
         $rest_prefix         = trailingslashit(rest_get_url_prefix());
-        $is_rest_api_request = ( false !== strpos($_SERVER['REQUEST_URI'], $rest_prefix) );
+        $request_uri         = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI']));
+        $is_rest_api_request = ( false !== strpos($request_uri, $rest_prefix) );
 
         return apply_filters('wcbs_is_rest_api_request', $is_rest_api_request);
     }
@@ -189,8 +201,9 @@ class WC_Backorder_Split
     /**
      * What type of request is this?
      *
-     * @param  string $type admin, ajax, cron or frontend.
-     * @return bool
+     * @since 1.0.0
+     * @param string $type Request type: admin, ajax, cron or frontend
+     * @return bool True if request matches type, false otherwise
      */
     private function is_request($type)
     {
@@ -204,12 +217,13 @@ class WC_Backorder_Split
             case 'frontend':
                 return ( ! is_admin() || defined('DOING_AJAX') ) && ! defined('DOING_CRON') && ! $this->is_rest_api_request();
         }
+        return false;
     }
 
     /**
-     * Init plugin
+     * Initialize plugin functionality after environment check.
      *
-     * @since 1.4
+     * @since 1.4.0
      */
     public function init_plugin()
     {
@@ -233,7 +247,9 @@ class WC_Backorder_Split
     }
 
     /**
-     * Display the environment alert
+     * Display environment compatibility alert in admin.
+     *
+     * @since 1.0.0
      */
     public function environment_notice()
     {

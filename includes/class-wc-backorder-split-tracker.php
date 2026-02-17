@@ -3,7 +3,7 @@
  * WPHEKA Plugin Deactivation Tracker
  *
  * @class       WC_Backorder_Split_Tracker
- * @version     1.4
+ * @version     2.1.0
  * @category    Class
  * @author      WPHEKA
  */
