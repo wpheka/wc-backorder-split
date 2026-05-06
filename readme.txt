@@ -2,10 +2,11 @@
 Contributors: wpheka, akshayaswaroop
 Tags: wc backorder split, backorder, backorder split, order split, split
 Requires at least: 5.0
-Tested up to: 6.9.1
+Requires PHP: 7.4
+Tested up to: 6.9.4
 WC requires at least: 4.2
-WC tested up to: 10.5.2
-Stable tag: 2.1.0
+WC tested up to: 10.7.0
+Stable tag: 2.2.0
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 Donate link: https://www.paypal.me/AKSHAYASWAROOP
@@ -33,9 +34,12 @@ Developers can extend the plugin using built-in hooks:
 * `wcbs_before_split_order` - Action before order splitting
 * `wcbs_after_split_order` - Action after order splitting
 * `wcbs_backorder_created` - Action when backorder is created
+* `wcbs_split_order_error` - Action on split error
 * `wcbs_should_split_order` - Filter to prevent splitting
 * `wcbs_backorder_items` - Filter to modify backorder items
 * `wcbs_backorder_status` - Filter to change backorder status
+* `wcbs_meta_fields_to_copy` - Filter to add/remove meta fields copied to backorder
+* `wcbs_disable_emails_on_split` - Filter to control email suppression during split
 
 If you enjoyed this plugin then please put a review, that will encourage me to bring some more …
 
@@ -59,6 +63,19 @@ If you enjoyed this plugin then please put a review, that will encourage me to b
 1. WooCommerce orders admin.
 
 == Changelog ==
+
+= 2.2.0 - 2026-05-06 =
+* Enhancement - Backorder order creation now suppresses WooCommerce emails to prevent duplicate new-order and processing notifications.
+* Enhancement - Backorder order now inherits all standard order fields: currency, prices include tax, customer IP, user agent, transaction ID, date paid, date completed, and stock reduced flag.
+* Enhancement - WooCommerce order attribution and VAT exemption meta fields are now copied to the backorder order.
+* Enhancement - Line items are cloned (not re-added via add_product) preserving product variations, custom fields, and all item-level meta data.
+* Enhancement - Per-unit prices are captured before any order mutation so discount-adjusted totals remain correct on both orders.
+* Enhancement - _reduced_stock meta is now split proportionally between the original and backorder order items.
+* Enhancement - Address indexes (_billing_address_index, _shipping_address_index) are now copied to the backorder order for correct address search results (HPOS-aware).
+* Enhancement - Both orders are scheduled for WooCommerce Admin analytics re-import after a split so revenue reports stay accurate.
+* Enhancement - Added wcbs_meta_fields_to_copy and wcbs_disable_emails_on_split filters for developer extensibility.
+* Fix - Stock quantity 0 at cart time now correctly removes the item from the original order instead of leaving it duplicated across both orders.
+* Fix - Removed erroneous add_item() call after in-place source item update that caused calculate_totals() to double-count the item.
 
 = 2.1.0 - 2026-02-17 =
 * Security - Fixed unsanitized $_SERVER['REQUEST_URI'] access in REST API detection.

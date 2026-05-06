@@ -3,7 +3,7 @@
  * WC Backorder Split main class
  *
  * @package WCBS
- * @version 2.1.0
+ * @version 2.2.0
  */
 
 defined('ABSPATH') || exit;
@@ -19,7 +19,7 @@ class WC_Backorder_Split
      *
      * @var string
      */
-    public $version = '2.1.0';
+    public $version = '2.2.0';
 
     /**
      * Min WC required version.
