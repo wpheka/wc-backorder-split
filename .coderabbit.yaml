@@ -1,0 +1,12 @@
+# CodeRabbit CLI configuration.
+#
+# The bundled framework/ directory is a copy of wpheka-framework, reviewed in
+# its own repository under its own ruleset. Reviewing it here spends the free
+# tier's 3-reviews-per-hour allowance re-reading code that is already covered,
+# and it is the bulk of the review time on the smaller plugins.
+#
+# path_filters globs also drive CodeRabbit's sparse-checkout, so an excluded
+# directory is never fetched for the review.
+reviews:
+  path_filters:
+    - "!framework/**"
