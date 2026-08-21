@@ -60,7 +60,7 @@ class WC_Backorder_Split_Tracker {
 		}
 
 		// Check user capabilities
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( 'activate_plugins' ) ) {
 			wp_send_json_error( array( 'error' => __( 'Insufficient permissions.', 'wc-backorder-split' ) ) );
 			wp_die();
 		}
@@ -75,7 +75,7 @@ class WC_Backorder_Split_Tracker {
 		$deactivation_domain = isset( $_POST['deactivation_domain'] ) ? sanitize_text_field( wp_unslash( $_POST['deactivation_domain'] ) ) : '';
 		$deactivation_license_key = isset( $_POST['deactivation_license_key'] ) ? sanitize_text_field( wp_unslash( $_POST['deactivation_license_key'] ) ) : '';
 
-		$email = isset( $_POST['deactivation_email'] ) ? filter_var( $_POST['deactivation_email'], FILTER_SANITIZE_EMAIL ) : '';
+		$email = isset( $_POST['deactivation_email'] ) ? sanitize_email( wp_unslash( $_POST['deactivation_email'] ) ) : '';
 
 		$reason_id = isset( $_POST['reason_id'] ) ? sanitize_text_field( wp_unslash( $_POST['reason_id'] ) ) : '';
 		$reason_info = isset( $_POST['reason_info'] ) ? sanitize_text_field( wp_unslash( $_POST['reason_info'] ) ) : '';
@@ -137,7 +137,6 @@ class WC_Backorder_Split_Tracker {
 		$license_domain = get_site_url();
 		$license_email = get_option( 'admin_email' );
 
-		$deactivation_modal_class = '.' . self::$deactivation_modal;
 		$deactivation_modal_id = self::$tracker_id . '-' . self::$deactivation_modal;
 
 		$reasons = array(
@@ -145,25 +144,25 @@ class WC_Backorder_Split_Tracker {
 				'id'          => 'could-not-understand',
 				'text'        => 'I couldn\'t understand how to make it work',
 				'type'        => 'textarea',
-				'placeholder' => 'Would you like us to assist you?',
+				'placeholder' => __( 'Would you like us to assist you?', 'wc-backorder-split' ),
 			),
 			array(
 				'id'          => 'found-better-plugin',
 				'text'        => 'I found a better plugin',
 				'type'        => 'text',
-				'placeholder' => 'Which plugin?',
+				'placeholder' => __( 'Which plugin?', 'wc-backorder-split' ),
 			),
 			array(
 				'id'          => 'not-have-that-feature',
 				'text'        => 'The plugin is great, but I need specific feature that you don\'t support',
 				'type'        => 'textarea',
-				'placeholder' => 'Could you tell us more about that feature?',
+				'placeholder' => __( 'Could you tell us more about that feature?', 'wc-backorder-split' ),
 			),
 			array(
 				'id'          => 'is-not-working',
 				'text'        => 'The plugin is not working',
 				'type'        => 'textarea',
-				'placeholder' => 'Could you tell us a bit more whats not working?',
+				'placeholder' => __( 'Could you tell us a bit more whats not working?', 'wc-backorder-split' ),
 			),
 			array(
 				'id'          => 'looking-for-other',
@@ -175,22 +174,22 @@ class WC_Backorder_Split_Tracker {
 				'id'          => 'did-not-work-as-expected',
 				'text'        => 'The plugin didn\'t work as expected',
 				'type'        => 'textarea',
-				'placeholder' => 'What did you expect?',
+				'placeholder' => __( 'What did you expect?', 'wc-backorder-split' ),
 			),
 			array(
 				'id'          => 'other',
 				'text'        => 'Other',
 				'type'        => 'textarea',
-				'placeholder' => 'Could you tell us a bit more?',
+				'placeholder' => __( 'Could you tell us a bit more?', 'wc-backorder-split' ),
 			),
 		);
 
 		?>
 
-		<div class="<?php echo esc_attr( self::$deactivation_modal ); ?>" id="<?php echo $deactivation_modal_id; ?>">
+		<div class="<?php echo esc_attr( self::$deactivation_modal ); ?>" id="<?php echo esc_attr( $deactivation_modal_id ); ?>">
 			<div class="<?php echo esc_attr( self::$deactivation_modal ); ?>-wrap">
 				<div class="<?php echo esc_attr( self::$deactivation_modal ); ?>-header">
-					<h3><?php echo esc_html( 'If you have a moment, please let us know why you are deactivating:', 'wpheka-gateway-moneris' ); ?></h3>
+					<h3><?php echo esc_html__( 'If you have a moment, please let us know why you are deactivating:', 'wc-backorder-split' ); ?></h3>
 				</div>
 
 				<div class="<?php echo esc_attr( self::$deactivation_modal ); ?>-body">
@@ -211,15 +210,16 @@ class WC_Backorder_Split_Tracker {
 				</div>
 
 				<div class="<?php echo esc_attr( self::$deactivation_modal ); ?>-footer">
-					<a href="#" class="dont-bother-me"><?php echo esc_html( 'I rather wouldn\'t say', 'wpheka-gateway-moneris' ); ?></a>
-					<button class="button-secondary"><?php echo esc_html( 'Submit & Deactivate', 'wpheka-gateway-moneris' ); ?></button>
-					<button class="button-primary"><?php echo esc_html( 'Cancel', 'wpheka-gateway-moneris' ); ?></button>
+					<a href="#" class="dont-bother-me"><?php echo esc_html__( 'I rather wouldn\'t say', 'wc-backorder-split' ); ?></a>
+					<button class="button-secondary"><?php echo esc_html__( 'Submit & Deactivate', 'wc-backorder-split' ); ?></button>
+					<button class="button-primary"><?php echo esc_html__( 'Cancel', 'wc-backorder-split' ); ?></button>
 				</div>
 			</div>
 		</div>
 
+		<?php // Selectors below are literal and must track self::$deactivation_modal; WordPress has no CSS escaper. ?>
 		<style type="text/css">
-			<?php echo $deactivation_modal_class; ?> {
+			.wc-backorder-split-deactivation-modal {
 				position: fixed;
 				z-index: 99999;
 				top: 0;
@@ -230,41 +230,41 @@ class WC_Backorder_Split_Tracker {
 				display: none;
 			}
 
-			<?php echo $deactivation_modal_class; ?>.modal-active {
+			.wc-backorder-split-deactivation-modal.modal-active {
 				display: block;
 			}
 
-			<?php echo $deactivation_modal_class; ?>-wrap {
+			.wc-backorder-split-deactivation-modal-wrap {
 				width: 475px;
 				position: relative;
 				margin: 10% auto;
 				background: #fff;
 			}
 
-			<?php echo $deactivation_modal_class; ?>-header {
+			.wc-backorder-split-deactivation-modal-header {
 				border-bottom: 1px solid #eee;
 				padding: 8px 20px;
 			}
 
-			<?php echo $deactivation_modal_class; ?>-header h3 {
+			.wc-backorder-split-deactivation-modal-header h3 {
 				line-height: 150%;
 				margin: 0;
 			}
 
-			<?php echo $deactivation_modal_class; ?>-body {
+			.wc-backorder-split-deactivation-modal-body {
 				padding: 5px 20px 20px 20px;
 			}
 
-			<?php echo $deactivation_modal_class; ?>-body .reason-input {
+			.wc-backorder-split-deactivation-modal-body .reason-input {
 				margin-top: 5px;
 				margin-left: 20px;
 			}
 
-			<?php echo $deactivation_modal_class; ?>-body textarea, <?php echo $deactivation_modal_class; ?>-body input[type="text"]{
+			.wc-backorder-split-deactivation-modal-body textarea, .wc-backorder-split-deactivation-modal-body input[type="text"]{
 				width: 100%;
 			}
 
-			<?php echo $deactivation_modal_class; ?>-footer {
+			.wc-backorder-split-deactivation-modal-footer {
 				border-top: 1px solid #eee;
 				padding: 12px 20px;
 				text-align: right;
@@ -274,10 +274,10 @@ class WC_Backorder_Split_Tracker {
 		<script type="text/javascript">
 			(function($) {
 				$(function() {
-					var modal = $( '#<?php echo $deactivation_modal_id; ?>' );
+					var modal = $( '#<?php echo esc_js( $deactivation_modal_id ); ?>' );
 					var deactivateLink = '';
 
-					$( '#the-list' ).on('click', 'a.<?php echo self::$tracker_id; ?>-deactivate-link', function(e) {
+					$( '#the-list' ).on('click', 'a.<?php echo esc_js( self::$tracker_id ); ?>-deactivate-link', function(e) {
 						e.preventDefault();
 
 						modal.addClass('modal-active');
@@ -339,7 +339,7 @@ class WC_Backorder_Split_Tracker {
 							},
 							beforeSend: function() {
 								button.addClass('disabled');
-								button.text('Processing...');
+								button.text('<?php echo esc_js( __( 'Processing…', 'wc-backorder-split' ) ); ?>');
 							},
 							success: function( response ) {
 								if ( response.success ) {

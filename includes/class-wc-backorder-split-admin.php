@@ -60,9 +60,9 @@ class WC_Backorder_Split_Admin
 
             if ($backorder_id) {
                 $backorder = wc_get_order($backorder_id);
-                if ($backorder) {
+                if ($backorder instanceof WC_Order) {
                     echo '<p><strong>' . esc_html__('Backorder Created:', 'wc-backorder-split') . '</strong> ';
-                    echo '<a href="' . esc_url(admin_url('post.php?post=' . absint($backorder_id) . '&action=edit')) . '">';
+                    echo '<a href="' . esc_url($backorder->get_edit_order_url()) . '">';
                     echo esc_html__('Order #', 'wc-backorder-split') . esc_html($backorder_id);
                     echo '</a> (' . esc_html(wc_get_order_status_name($backorder->get_status())) . ')</p>';
                 }
@@ -70,9 +70,9 @@ class WC_Backorder_Split_Admin
 
             if ($parent_order_id) {
                 $parent_order = wc_get_order($parent_order_id);
-                if ($parent_order) {
+                if ($parent_order instanceof WC_Order) {
                     echo '<p><strong>' . esc_html__('Split From Order:', 'wc-backorder-split') . '</strong> ';
-                    echo '<a href="' . esc_url(admin_url('post.php?post=' . absint($parent_order_id) . '&action=edit')) . '">';
+                    echo '<a href="' . esc_url($parent_order->get_edit_order_url()) . '">';
                     echo esc_html__('Order #', 'wc-backorder-split') . esc_html($parent_order_id);
                     echo '</a> (' . esc_html(wc_get_order_status_name($parent_order->get_status())) . ')</p>';
                 }
@@ -89,23 +89,35 @@ class WC_Backorder_Split_Admin
      */
     public static function display_admin_notices()
     {
-        // Check for success notice
-        if (isset($_GET['wcbs_notice']) && $_GET['wcbs_notice'] === 'backorder_created' && isset($_GET['backorder_id'])) {
-            $backorder_id = absint($_GET['backorder_id']);
-            ?>
-            <div class="notice notice-success is-dismissible">
-                <p>
-                    <?php
-                    printf(
-                        /* translators: %s: backorder ID with link */
-                        esc_html__('Backorder successfully created: %s', 'wc-backorder-split'),
-                        '<a href="' . esc_url(admin_url('post.php?post=' . $backorder_id . '&action=edit')) . '">' .
-                        esc_html__('Order #', 'wc-backorder-split') . esc_html($backorder_id) . '</a>'
-                    );
-                    ?>
-                </p>
-            </div>
-            <?php
+        // Read-only notice driven by a redirect, so there is no nonce to verify
+        // and nothing here changes state.
+        // phpcs:disable WordPress.Security.NonceVerification.Recommended
+        $notice = isset($_GET['wcbs_notice']) ? sanitize_key(wp_unslash($_GET['wcbs_notice'])) : '';
+        $backorder_id = isset($_GET['backorder_id']) ? absint($_GET['backorder_id']) : 0;
+        // phpcs:enable WordPress.Security.NonceVerification.Recommended
+
+        if ('backorder_created' !== $notice || !$backorder_id) {
+            return;
         }
+
+        $backorder = wc_get_order($backorder_id);
+
+        if (!$backorder instanceof WC_Order) {
+            return;
+        }
+        ?>
+        <div class="notice notice-success is-dismissible">
+            <p>
+                <?php
+                printf(
+                    /* translators: %s: backorder ID with link */
+                    esc_html__('Backorder successfully created: %s', 'wc-backorder-split'),
+                    '<a href="' . esc_url($backorder->get_edit_order_url()) . '">' .
+                    esc_html__('Order #', 'wc-backorder-split') . esc_html($backorder_id) . '</a>'
+                );
+                ?>
+            </p>
+        </div>
+        <?php
     }
 }
