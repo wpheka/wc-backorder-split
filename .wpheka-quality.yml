@@ -1,0 +1,34 @@
+project_type: woocommerce-plugin
+
+php:
+  minimum: "8.1"
+
+wordpress:
+  required: true
+
+woocommerce:
+  required: true
+  hpos: true
+
+checks:
+  php_syntax: true
+  git_diff_check: true
+  phpcs: true
+  phpstan: true
+  phpunit: true
+  composer_validate: true
+  composer_audit: true
+  semgrep: true
+  gitleaks: true
+  plugin_check: true
+  coderabbit: true
+  npm: false
+
+# framework/ is listed ahead of adoption: once bundled it is reviewed in its own
+# repository against its own phpcs.xml, and scanning it here reports the same
+# inherent PSR-4-versus-WordPress filename findings in every consumer.
+exclude:
+  - framework/
+  - languages/
+
+fail_on: error

@@ -6,7 +6,7 @@
  * Author: WPHEKA
  * Version: 2.2.0
  * Requires at least: 4.9
- * Requires PHP: 7.4
+ * Requires PHP: 8.1
  * Tested up to: 6.9.4
  * Author URI: https://www.wpheka.com
  * Text Domain: wc-backorder-split
