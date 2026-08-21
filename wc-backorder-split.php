@@ -85,6 +85,7 @@ function wcbs_declare_hpos_compatibility()
             static function () {
                 if (class_exists('\Automattic\WooCommerce\Utilities\FeaturesUtil')) {
                     \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility('custom_order_tables', WCBS_PLUGIN_FILE, true);
+                    \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility('cart_checkout_blocks', WCBS_PLUGIN_FILE, true);
                 }
             }
         );
@@ -93,14 +94,29 @@ function wcbs_declare_hpos_compatibility()
     }
 
     /*
-     * HPOS only, which is exactly what this plugin declared before adoption.
-     * The adapter's default declares Blocks compatibility too, and nobody has
-     * verified this plugin against block checkout -- claiming it would replace
-     * WooCommerce's "uncertain" listing with an assertion no one made.
+     * Both features, and the blocks one is now verified rather than assumed.
+     * This plugin's three frontend hooks all fire on the path the Cart and
+     * Checkout blocks use:
+     *
+     *   woocommerce_add_to_cart                      WC_Cart::add_to_cart, which
+     *                                                the Store API calls
+     *   woocommerce_checkout_create_order_line_item   fired by WC_Checkout, which
+     *                                                StoreApi OrderController
+     *                                                delegates line items to
+     *   woocommerce_thankyou                          fired by the Order
+     *                                                Confirmation block
+     *
+     * Checked against WooCommerce 11.0.1 source and then exercised: an order
+     * built through wc()->checkout->create_order_line_items() -- the Store API's
+     * own path -- fired both cart and line-item hooks and this plugin's callback
+     * wrote its item meta.
      */
     \WPHEKA\Framework\V1\WooCommerce\Compatibility::declare_for(
         WCBS_PLUGIN_FILE,
-        array( \WPHEKA\Framework\V1\WooCommerce\Compatibility::HPOS )
+        array(
+            \WPHEKA\Framework\V1\WooCommerce\Compatibility::HPOS   => true,
+            \WPHEKA\Framework\V1\WooCommerce\Compatibility::BLOCKS => true,
+        )
     );
 }
 add_action('plugins_loaded', 'wcbs_declare_hpos_compatibility');
