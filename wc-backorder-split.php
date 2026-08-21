@@ -5,15 +5,15 @@
  * Description: The <code><strong>WC Backorder Split</strong></code> plugin helps you split the WooCommerce order for the products that you do not have in stock.
  * Author: WPHEKA
  * Version: 2.2.0
- * Requires at least: 4.9
+ * Requires at least: 5.0
  * Requires PHP: 8.1
- * Tested up to: 6.9.4
+ * Tested up to: 7.1
  * Author URI: https://www.wpheka.com
  * Text Domain: wc-backorder-split
  * Domain Path: /languages
  * Requires Plugins: woocommerce
  * WC requires at least: 4.2
- * WC tested up to: 10.7.0
+ * WC tested up to: 11.0.1
  * License: GPLv3 or later
  *
  * @package WCBS

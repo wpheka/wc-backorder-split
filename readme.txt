@@ -3,14 +3,13 @@ Contributors: wpheka, akshayaswaroop
 Tags: wc backorder split, backorder, backorder split, order split, split
 Requires at least: 5.0
 Requires PHP: 8.1
-Tested up to: 6.9.4
+Tested up to: 7.1
 WC requires at least: 4.2
-WC tested up to: 10.7.0
+WC tested up to: 11.0.1
 Stable tag: 2.2.0
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 Donate link: https://www.paypal.me/AKSHAYASWAROOP
-
 A simple plugin that helps you split the WooCommerce order for the products that you do not have in stock.
 
 == Description ==
