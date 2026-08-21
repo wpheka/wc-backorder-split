@@ -48,23 +48,60 @@ final class Compatibility {
 	 * declared nothing while appearing to work, and WooCommerce then listed the
 	 * plugin as HPOS-incompatible.
 	 *
-	 * @param string   $plugin_file The plugin's main file, i.e. __FILE__.
-	 *                              Must be the main file — WooCommerce resolves
-	 *                              it to a plugin basename, so passing a file
-	 *                              from a subdirectory silently declares nothing.
-	 * @param string[] $features    Feature identifiers; defaults to HPOS and Blocks.
+	 * **Declaring *in*compatibility is a first-class use of this method**, and
+	 * the reason `$features` accepts a map. WooCommerce shows users a warning
+	 * naming the plugins that have declared themselves incompatible with a
+	 * feature, so `false` is how a plugin that genuinely breaks under block
+	 * checkout keeps a store owner from enabling it. An adapter that could only
+	 * say "yes" would turn adoption into a silent flip from a deliberate `false`
+	 * to a `true` nobody meant — removing the warning while the incompatibility
+	 * remained. `wpheka-request-for-quote` declares exactly that pair.
+	 *
+	 * `$features` takes either shape:
+	 *
+	 *     array( self::HPOS, self::BLOCKS )                    // both compatible
+	 *     array( self::HPOS => true, self::BLOCKS => false )   // blocks incompatible
+	 *
+	 * **Pass the features explicitly when adopting.** The default declares both,
+	 * and a plugin that previously declared only HPOS then gains a block
+	 * compatibility claim nobody verified — replacing WooCommerce's honest
+	 * *uncertain* listing with a "yes". That happened to two plugins during
+	 * adoption before it was caught (ADR-029).
+	 *
+	 * @param string                         $plugin_file The plugin's main file, i.e.
+	 *                                                    __FILE__. Must be the main file:
+	 *                                                    WooCommerce resolves it to a plugin
+	 *                                                    basename, so a file from a
+	 *                                                    subdirectory declares nothing.
+	 * @param array<int|string, string|bool> $features    Feature identifiers, or a map of
+	 *                                                    identifier => verdict as above.
+	 *                                                    Defaults to both, compatible.
 	 * @return void
 	 */
 	public static function declare_for( string $plugin_file, array $features = array( self::HPOS, self::BLOCKS ) ): void {
+		$declarations = array();
+
+		foreach ( $features as $key => $value ) {
+			// A string key means the map form, so the value is the verdict. An
+			// integer key means the list form, where the value is the feature
+			// name and the verdict is implicitly true.
+			if ( is_string( $key ) ) {
+				$declarations[ $key ] = (bool) $value;
+				continue;
+			}
+
+			$declarations[ (string) $value ] = true;
+		}
+
 		add_action(
 			'before_woocommerce_init',
-			static function () use ( $plugin_file, $features ): void {
+			static function () use ( $plugin_file, $declarations ): void {
 				if ( ! class_exists( \Automattic\WooCommerce\Utilities\FeaturesUtil::class ) ) {
 					return;
 				}
 
-				foreach ( $features as $feature ) {
-					\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( $feature, $plugin_file, true );
+				foreach ( $declarations as $feature => $compatible ) {
+					\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( $feature, $plugin_file, $compatible );
 				}
 			}
 		);
