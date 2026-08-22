@@ -6,7 +6,7 @@ Requires PHP: 8.1
 Tested up to: 7.1
 WC requires at least: 4.2
 WC tested up to: 11.0.1
-Stable tag: 2.2.0
+Stable tag: 2.3.0
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 Donate link: https://www.paypal.me/AKSHAYASWAROOP
@@ -62,6 +62,15 @@ If you enjoyed this plugin then please put a review, that will encourage me to b
 1. WooCommerce orders admin.
 
 == Changelog ==
+
+= 2.3.0 - 2026-08-22 =
+* Security - The backorder success notice no longer reveals whether an order id exists to users who cannot edit orders.
+* Fix - Order links in the backorder notice and the linked-orders panel now work on stores using High-Performance Order Storage. They used the legacy post editor URL, which does not resolve once orders live in their own tables.
+* Fix - The deactivation feedback dialog is translatable again. Its text passed a text domain to a function that ignores the argument, and the domain named a different plugin.
+* Security - Escaped the deactivation dialog's markup and its inline script.
+* Enhancement - Declared compatibility with the Cart and Checkout blocks, verified against the order path WooCommerce's Store API actually uses.
+* Enhancement - Adopted the WPHEKA framework for the HPOS declaration and plugin bootstrapping.
+* Enhancement - Requires PHP 8.1 and WordPress 6.5. WordPress 7.1 and WooCommerce 11.0.1 compatibility added.
 
 = 2.2.0 - 2026-05-06 =
 * Enhancement - Backorder order creation now suppresses WooCommerce emails to prevent duplicate new-order and processing notifications.
