@@ -100,6 +100,20 @@ class WC_Backorder_Split_Admin
             return;
         }
 
+        /*
+         * admin_notices fires for anyone who can reach wp-admin at all -- a
+         * subscriber can open profile.php -- and backorder_id arrives from the
+         * URL. Without this check the notice answers "is there an order with
+         * this id?" for any logged-in visitor willing to try ids, and shows the
+         * order number and an edit link when there is.
+         *
+         * edit_shop_orders is the capability the linked screen already requires,
+         * so gating on it adds no new restriction for anyone meant to see this.
+         */
+        if (!current_user_can('edit_shop_orders')) {
+            return;
+        }
+
         $backorder = wc_get_order($backorder_id);
 
         if (!$backorder instanceof WC_Order) {
