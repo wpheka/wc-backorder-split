@@ -1,7 +1,7 @@
 ﻿=== WC Backorder Split ===
 Contributors: wpheka, akshayaswaroop
 Tags: wc backorder split, backorder, backorder split, order split, split
-Requires at least: 5.0
+Requires at least: 6.5
 Requires PHP: 8.1
 Tested up to: 7.1
 WC requires at least: 4.2
