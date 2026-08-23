@@ -64,6 +64,8 @@ If you enjoyed this plugin then please put a review, that will encourage me to b
 == Changelog ==
 
 = 2.3.0 - 2026-08-22 =
+* Feature - Asks for a review on the Dashboard once the plugin has been used, with a link that pre-selects a five-star rating. Shown only after three orders have been split, dismissed per user rather than for the whole site, and never shown again once dismissed.
+* Fix - The deactivation feedback dialog no longer leaves its button stuck on "Processing" if the request fails; deactivation proceeds either way.
 * Security - The backorder success notice no longer reveals whether an order id exists to users who cannot edit orders.
 * Fix - Order links in the backorder notice and the linked-orders panel now work on stores using High-Performance Order Storage. They used the legacy post editor URL, which does not resolve once orders live in their own tables.
 * Fix - The deactivation feedback dialog is translatable again. Its text passed a text domain to a function that ignores the argument, and the domain named a different plugin.
