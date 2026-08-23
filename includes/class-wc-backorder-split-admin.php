@@ -25,6 +25,8 @@ class WC_Backorder_Split_Admin
     {
         add_action('admin_enqueue_scripts', array( __CLASS__, 'wcbs_admin_styles' ));
         add_action('woocommerce_admin_order_data_after_order_details', array( __CLASS__, 'display_linked_orders' ), 10, 1);
+        add_action('admin_notices', array( __CLASS__, 'review_notice' ));
+        add_action('admin_init', array( __CLASS__, 'maybe_dismiss_review_notice' ));
         add_action('admin_notices', array( __CLASS__, 'display_admin_notices' ));
     }
 
@@ -133,5 +135,91 @@ class WC_Backorder_Split_Admin
             </p>
         </div>
         <?php
+    }
+
+    /**
+     * Ask for a review once the plugin has demonstrably done its job.
+     *
+     * Follows the shape Elementor uses for its rate-us notice -- dashboard only,
+     * dismissed per user rather than per site, and gated on a usage count rather
+     * than on elapsed time. Written here rather than taken from Elementor, whose
+     * licence differs from this project's (ADR-008).
+     *
+     * Three splits, not a timer. A week having passed says nothing about whether
+     * the plugin was useful; three orders actually split says it was.
+     *
+     * @since 2.3.0
+     * @return void
+     */
+    public static function review_notice()
+    {
+        if (!current_user_can('manage_woocommerce')) {
+            return;
+        }
+
+        $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+
+        if (!$screen || 'dashboard' !== $screen->id) {
+            return;
+        }
+
+        if (get_user_meta(get_current_user_id(), 'wcbs_review_dismissed', true)) {
+            return;
+        }
+
+        if (3 > (int) get_option('wcbs_split_count', 0)) {
+            return;
+        }
+
+        $reviews = 'https://wordpress.org/support/plugin/wc-backorder-split/reviews/';
+        $dismiss = wp_nonce_url(
+            add_query_arg('wcbs_dismiss_review', '1', admin_url('index.php')),
+            'wcbs_dismiss_review'
+        );
+        ?>
+        <div class="notice notice-info is-dismissible">
+            <p>
+                <?php
+                printf(
+                    /* translators: 1: plugin name, 2: opening link tag to the reviews page, 3: closing link tag, 4: opening link tag to dismiss, 5: closing link tag */
+                    esc_html__('%1$s has split orders on this store. If it has been useful, %2$sleaving a review%3$s helps other shop owners find it. %4$sDon\'t ask again%5$s.', 'wc-backorder-split'),
+                    '<strong>' . esc_html__('WC Backorder Split', 'wc-backorder-split') . '</strong>',
+                    '<a href="' . esc_url($reviews) . '" target="_blank" rel="noopener noreferrer">',
+                    '</a>',
+                    '<a href="' . esc_url($dismiss) . '">',
+                    '</a>'
+                );
+                ?>
+            </p>
+        </div>
+        <?php
+    }
+
+    /**
+     * Stop asking this user, when they ask us to.
+     *
+     * Per user, not per site: dismissing an ask is one person's decision, and a
+     * site-wide flag lets whichever administrator clicks first answer on behalf
+     * of everyone else.
+     *
+     * @since 2.3.0
+     * @return void
+     */
+    public static function maybe_dismiss_review_notice()
+    {
+        if (!isset($_GET['wcbs_dismiss_review'])) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- nonce checked immediately below.
+            return;
+        }
+
+        if (!current_user_can('manage_woocommerce')) {
+            return;
+        }
+
+        check_admin_referer('wcbs_dismiss_review');
+
+        update_user_meta(get_current_user_id(), 'wcbs_review_dismissed', 1);
+
+        wp_safe_redirect(admin_url('index.php'));
+        exit;
     }
 }

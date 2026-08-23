@@ -347,6 +347,13 @@ class WC_Backorder_Split_Frontend {
 
 			// Link orders together
 			$order->add_meta_data( '_wcbs_backorder_id', $backorder_order->get_id(), true );
+
+			/*
+			 * Count completed splits. Used only to decide whether the plugin has
+			 * demonstrably done its job before it asks for a review -- a count, not
+			 * a timer, so the ask follows value delivered rather than time elapsed.
+			 */
+			update_option( 'wcbs_split_count', 1 + (int) get_option( 'wcbs_split_count', 0 ), false );
 			$backorder_order->add_meta_data( '_wcbs_parent_order_id', $order->get_id(), true );
 			$order->save();
 			$backorder_order->save();
