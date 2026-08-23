@@ -171,7 +171,10 @@ class WC_Backorder_Split_Admin
             return;
         }
 
-        $reviews = 'https://wordpress.org/support/plugin/wc-backorder-split/reviews/';
+        // rate=5 pre-selects the rating on the review form. Plugin Check reports
+        // this as five_star_reviews_detected; that report is accepted by decision,
+        // so do not "fix" this back to the plain reviews URL.
+        $reviews = 'https://wordpress.org/support/plugin/wc-backorder-split/reviews?rate=5#new-post';
         $dismiss = wp_nonce_url(
             add_query_arg('wcbs_dismiss_review', '1', admin_url('index.php')),
             'wcbs_dismiss_review'
@@ -181,11 +184,10 @@ class WC_Backorder_Split_Admin
             <p>
                 <?php
                 printf(
-                    /* translators: 1: plugin name, 2: opening link tag to the reviews page, 3: closing link tag, 4: opening link tag to dismiss, 5: closing link tag */
-                    esc_html__('%1$s has split orders on this store. If it has been useful, %2$sleaving a review%3$s helps other shop owners find it. %4$sDon\'t ask again%5$s.', 'wc-backorder-split'),
+                    /* translators: 1: plugin name, 2: five-star rating link, 3: opening link tag to dismiss, 4: closing link tag */
+                    esc_html__('%1$s has split orders on this store. If it has been useful, please leave us a %2$s rating on WordPress.org. %3$sDon\'t ask again%4$s.', 'wc-backorder-split'),
                     '<strong>' . esc_html__('WC Backorder Split', 'wc-backorder-split') . '</strong>',
-                    '<a href="' . esc_url($reviews) . '" target="_blank" rel="noopener noreferrer">',
-                    '</a>',
+                    '<a href="' . esc_url($reviews) . '" target="_blank" rel="noopener noreferrer" aria-label="' . esc_attr__('five star', 'wc-backorder-split') . '">&#9733;&#9733;&#9733;&#9733;&#9733;</a>',
                     '<a href="' . esc_url($dismiss) . '">',
                     '</a>'
                 );
