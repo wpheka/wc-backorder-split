@@ -341,6 +341,15 @@ class WC_Backorder_Split_Tracker {
 								button.addClass('disabled');
 								button.text('<?php echo esc_js( __( 'Processing…', 'wc-backorder-split' ) ); ?>');
 							},
+							error: function() {
+								// A stale nonce answers 403 and no success
+								// branch runs, so without this the button stayed
+								// disabled on "Processing" and the plugin could
+								// never be deactivated. Feedback is optional;
+								// deactivating is not. Matches the sibling in
+								// wc-search-orders-by-product.
+								window.location.href = deactivateLink;
+							},
 							success: function( response ) {
 								if ( response.success ) {
 									window.location.href = deactivateLink;
