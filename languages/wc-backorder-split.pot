@@ -1,0 +1,187 @@
+# Copyright (C) 2026 WPHEKA
+# This file is distributed under the GPLv3 or later.
+msgid ""
+msgstr ""
+"Project-Id-Version: WC Backorder Split 2.3.0\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/wc-backorder-split\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2026-08-25T10:49:20+00:00\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"X-Generator: WP-CLI 2.12.0\n"
+"X-Domain: wc-backorder-split\n"
+
+#. Plugin Name of the plugin
+#: wc-backorder-split.php
+#: includes/class-wc-backorder-split-admin.php:195
+msgid "WC Backorder Split"
+msgstr ""
+
+#. Plugin URI of the plugin
+#: wc-backorder-split.php
+msgid "https://www.wpheka.com/product/wc-backorder-split"
+msgstr ""
+
+#. Description of the plugin
+#: wc-backorder-split.php
+msgid "The <code><strong>WC Backorder Split</strong></code> plugin helps you split the WooCommerce order for the products that you do not have in stock."
+msgstr ""
+
+#. Author of the plugin
+#: wc-backorder-split.php
+msgid "WPHEKA"
+msgstr ""
+
+#. Author URI of the plugin
+#: wc-backorder-split.php
+msgid "https://www.wpheka.com"
+msgstr ""
+
+#: includes/class-wc-backorder-split-admin.php:66
+msgid "Backorder Created:"
+msgstr ""
+
+#: includes/class-wc-backorder-split-admin.php:68
+#: includes/class-wc-backorder-split-admin.php:78
+#: includes/class-wc-backorder-split-admin.php:132
+msgid "Order #"
+msgstr ""
+
+#: includes/class-wc-backorder-split-admin.php:76
+msgid "Split From Order:"
+msgstr ""
+
+#. translators: %s: backorder ID with link
+#: includes/class-wc-backorder-split-admin.php:130
+#, php-format
+msgid "Backorder successfully created: %s"
+msgstr ""
+
+#. translators: 1: plugin name, 2: five-star rating link, 3: opening link tag to dismiss, 4: closing link tag
+#: includes/class-wc-backorder-split-admin.php:194
+#, php-format
+msgid "%1$s has split orders on this store. If it has been useful, please leave us a %2$s rating on WordPress.org. %3$sDon't ask again%4$s."
+msgstr ""
+
+#: includes/class-wc-backorder-split-admin.php:196
+msgid "five star"
+msgstr ""
+
+#: includes/class-wc-backorder-split-frontend.php:259
+msgid "Backorder split"
+msgstr ""
+
+#: includes/class-wc-backorder-split-frontend.php:363
+#, php-format
+msgid "Backorder items split into order #%s"
+msgstr ""
+
+#: includes/class-wc-backorder-split-frontend.php:369
+#, php-format
+msgid "This order contains backordered items from order #%s"
+msgstr ""
+
+#: includes/class-wc-backorder-split-register.php:44
+#: includes/class-wc-backorder-split-register.php:59
+msgctxt "Order status"
+msgid "Backordered"
+msgstr ""
+
+#. translators: %s: number of orders
+#: includes/class-wc-backorder-split-register.php:65
+#, php-format
+msgid "Backordered <span class=\"count\">(%s)</span>"
+msgid_plural "Backordered <span class=\"count\">(%s)</span>"
+msgstr[0] ""
+msgstr[1] ""
+
+#: includes/class-wc-backorder-split-register.php:80
+msgid "Change status to backordered"
+msgstr ""
+
+#: includes/class-wc-backorder-split-tracker.php:58
+msgid "Security check failed. Please try again."
+msgstr ""
+
+#: includes/class-wc-backorder-split-tracker.php:64
+msgid "Insufficient permissions."
+msgstr ""
+
+#: includes/class-wc-backorder-split-tracker.php:69
+msgid "Something went wrong. Please try again later."
+msgstr ""
+
+#: includes/class-wc-backorder-split-tracker.php:147
+msgid "Would you like us to assist you?"
+msgstr ""
+
+#: includes/class-wc-backorder-split-tracker.php:153
+msgid "Which plugin?"
+msgstr ""
+
+#: includes/class-wc-backorder-split-tracker.php:159
+msgid "Could you tell us more about that feature?"
+msgstr ""
+
+#: includes/class-wc-backorder-split-tracker.php:165
+msgid "Could you tell us a bit more whats not working?"
+msgstr ""
+
+#: includes/class-wc-backorder-split-tracker.php:177
+msgid "What did you expect?"
+msgstr ""
+
+#: includes/class-wc-backorder-split-tracker.php:183
+msgid "Could you tell us a bit more?"
+msgstr ""
+
+#: includes/class-wc-backorder-split-tracker.php:192
+msgid "If you have a moment, please let us know why you are deactivating:"
+msgstr ""
+
+#: includes/class-wc-backorder-split-tracker.php:213
+msgid "I rather wouldn't say"
+msgstr ""
+
+#: includes/class-wc-backorder-split-tracker.php:214
+msgid "Submit & Deactivate"
+msgstr ""
+
+#: includes/class-wc-backorder-split-tracker.php:215
+msgid "Cancel"
+msgstr ""
+
+#: includes/class-wc-backorder-split-tracker.php:342
+msgid "Processing…"
+msgstr ""
+
+#: includes/class-wc-backorder-split.php:149
+msgid "Donate"
+msgstr ""
+
+#: includes/class-wc-backorder-split.php:150
+msgid "Open a support request at wpheka.com"
+msgstr ""
+
+#: includes/class-wc-backorder-split.php:150
+msgid "Support"
+msgstr ""
+
+#. translators: HTML Tags.
+#: includes/class-wc-backorder-split.php:169
+#, php-format
+msgid "%1$sWC Backorder Split%2$s requires WooCommerce to be activated to work."
+msgstr ""
+
+#. translators: %1$s: minimum WooCommerce version, %2$s: current WooCommerce version
+#: includes/class-wc-backorder-split.php:175
+#, php-format
+msgid "The minimum WooCommerce version required for this plugin is %1$s. You are running %2$s."
+msgstr ""
+
+#: includes/class-wc-backorder-split.php:256
+msgid "Heads up!"
+msgstr ""
