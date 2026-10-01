@@ -241,7 +241,9 @@ class WC_Backorder_Split
             WC_Backorder_Split_Tracker::init();
         }
 
-        if ($this->is_request('frontend')) {
+        // REST too: the block checkout places orders through the Store API, a
+        // REST request, and its add-to-cart and line-item hooks must run there.
+        if ($this->is_request('frontend') || $this->is_rest_api_request()) {
             WC_Backorder_Split_Frontend::init();
         }
     }

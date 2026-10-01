@@ -13,7 +13,7 @@
  * Domain Path: /languages
  * Requires Plugins: woocommerce
  * WC requires at least: 4.2
- * WC tested up to: 11.0.1
+ * WC tested up to: 11.1.2
  * License: GPLv3 or later
  *
  * @package WCBS

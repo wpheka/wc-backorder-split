@@ -39,10 +39,12 @@ class WC_Backorder_Split_Frontend {
 	 */
 	public static function store_stock_quantity_in_cart_item( $cart_item_key, $product_id, $quantity, $_variation_id, $_variation, $_cart_item_data ) {
 		try {
-			$product = wc_get_product( $product_id );
+			// The variation, when there is one. $product_id is the parent, which
+			// carries no stock of its own when stock is managed per variation.
+			$product = wc_get_product( $_variation_id ? $_variation_id : $product_id );
 
 			if ( ! $product ) {
-				error_log( 'WC Backorder Split: Invalid product ID ' . $product_id );
+				self::log_error( 'Invalid product ID ' . ( $_variation_id ? $_variation_id : $product_id ) );
 				return;
 			}
 
@@ -54,11 +56,13 @@ class WC_Backorder_Split_Frontend {
 
 			if ( is_numeric( $stock_quantity ) && $quantity > $stock_quantity ) {
 				if ( isset( WC()->cart->cart_contents[ $cart_item_key ] ) ) {
-					WC()->cart->cart_contents[ $cart_item_key ]['_stock_quantity_at_add'] = $stock_quantity;
+					// Never below zero: stock already oversold by earlier
+					// backorders would otherwise backorder more than was bought.
+					WC()->cart->cart_contents[ $cart_item_key ]['_stock_quantity_at_add'] = max( 0, (int) $stock_quantity );
 				}
 			}
 		} catch ( Exception $e ) {
-			error_log( 'WC Backorder Split - Error in store_stock_quantity_in_cart_item: ' . $e->getMessage() );
+			self::log_error( 'Error in store_stock_quantity_in_cart_item: ' . $e->getMessage() );
 		}
 	}
 
@@ -72,6 +76,27 @@ class WC_Backorder_Split_Frontend {
 	 * @param WC_Order              $_order
 	 */
 	public static function save_stock_quantity_to_order_item( $item, $_cart_item_key, $values, $_order ) {
+		/*
+		 * Read the stock again here, at checkout, for every stock-managed line
+		 * that allows backorders. The add-to-cart value alone missed quantity
+		 * changes made in the cart, and compared only the quantity added, not
+		 * the line total. Stock is not reduced yet at this point (WooCommerce
+		 * writes its own "Backordered" item meta from the same reading just
+		 * before this hook), and the item's product is the variation when
+		 * there is one.
+		 *
+		 * Recording it for in-stock lines too matters: without the meta,
+		 * split_backorder_products() falls back to is_on_backorder(), which
+		 * runs after stock has been reduced and so can mistake an in-stock
+		 * line for a backordered one.
+		 */
+		$product = $item->get_product();
+
+		if ( $product && $product->managing_stock() && $product->backorders_allowed() && is_numeric( $product->get_stock_quantity() ) ) {
+			$item->add_meta_data( '_stock_quantity_at_add', max( 0, (int) $product->get_stock_quantity() ), true );
+			return;
+		}
+
 		if ( isset( $values['_stock_quantity_at_add'] ) ) {
 			$item->add_meta_data( '_stock_quantity_at_add', $values['_stock_quantity_at_add'], true );
 		}
@@ -105,7 +130,15 @@ class WC_Backorder_Split_Frontend {
 
 			$stock_quantity_at_add = $item->get_meta( '_stock_quantity_at_add' );
 
-			if ( $stock_quantity_at_add !== '' || ! $product->is_on_backorder() ) {
+			if ( '' !== $stock_quantity_at_add ) {
+				// Recorded at checkout: the line is wholly backordered only when
+				// nothing was in stock. This used to return false for any
+				// recorded value, so an order with every line at zero stock
+				// went down the split path and left the original order empty.
+				if ( (int) $stock_quantity_at_add > 0 ) {
+					return false;
+				}
+			} elseif ( ! $product->is_on_backorder() ) {
 				return false;
 			}
 		}
@@ -129,7 +162,7 @@ class WC_Backorder_Split_Frontend {
 			$order = wc_get_order( $order_id );
 
 			if ( ! $order ) {
-				error_log( 'WC Backorder Split: Invalid order ID ' . $order_id );
+				self::log_error( 'Invalid order ID ' . $order_id );
 				return;
 			}
 
@@ -262,7 +295,7 @@ class WC_Backorder_Split_Frontend {
 			self::maybe_restore_emails( $order );
 
 			if ( ! $backorder_order ) {
-				error_log( 'WC Backorder Split: Failed to create backorder order for order ID ' . $order_id );
+				self::log_error( 'Failed to create backorder order for order ID ' . $order_id );
 				return;
 			}
 
@@ -380,7 +413,7 @@ class WC_Backorder_Split_Frontend {
 			do_action( 'wcbs_after_split_order', $order_id, $order );
 
 		} catch ( Exception $e ) {
-			error_log( 'WC Backorder Split - Error in split_backorder_products: ' . $e->getMessage() );
+			self::log_error( 'Error in split_backorder_products for order ID ' . $order_id . ': ' . $e->getMessage() );
 			do_action( 'wcbs_split_order_error', $order_id, $e->getMessage() );
 		}
 	}
@@ -388,6 +421,20 @@ class WC_Backorder_Split_Frontend {
 	// =========================================================================
 	// Private helpers
 	// =========================================================================
+
+	/**
+	 * Log an error to WooCommerce > Status > Logs, source wc-backorder-split.
+	 *
+	 * Replaces bare error_log() calls, which wrote to the server's PHP log on
+	 * every store. Pass ids and exception text only, never customer details.
+	 *
+	 * @param string $message Message.
+	 */
+	private static function log_error( $message ) {
+		if ( function_exists( 'wc_get_logger' ) ) {
+			wc_get_logger()->error( $message, array( 'source' => 'wc-backorder-split' ) );
+		}
+	}
 
 	/**
 	 * Returns the order meta fields to copy to the backorder order.
