@@ -6,7 +6,7 @@ Requires PHP: 8.1
 Tested up to: 7.1
 WC requires at least: 4.2
 WC tested up to: 11.1.2
-Stable tag: 2.3.0
+Stable tag: 2.3.1
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 Donate link: https://www.paypal.me/AKSHAYASWAROOP
@@ -62,6 +62,14 @@ If you enjoyed this plugin then please put a review, that will encourage me to b
 1. WooCommerce orders admin.
 
 == Changelog ==
+
+= 2.3.1 - 2026-10-01 =
+* Fix - Variable products now split correctly. Stock was read from the parent product, which has none when stock is managed per variation.
+* Fix - Orders placed with the Checkout block are now split. The plugin did not run during block checkout.
+* Fix - Raising a quantity in the cart before checkout no longer moves in-stock items into the backorder order or marks the whole order backordered without splitting it.
+* Fix - An order where nothing was in stock now just changes status instead of leaving the original order empty.
+* Enhancement - Errors are logged to WooCommerce > Status > Logs instead of the server's PHP error log.
+* Enhancement - WooCommerce 11.1.2 compatibility.
 
 = 2.3.0 - 2026-08-22 =
 * Feature - Asks for a review on the Dashboard once the plugin has been used, with a link that pre-selects a five-star rating. Shown only after three orders have been split, dismissed per user rather than for the whole site, and never shown again once dismissed.
