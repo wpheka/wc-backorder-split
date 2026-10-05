@@ -6,7 +6,7 @@ Requires PHP: 8.1
 Tested up to: 7.1.2
 WC requires at least: 4.2
 WC tested up to: 11.1.2
-Stable tag: 2.3.1
+Stable tag: 2.3.2
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 Donate link: https://www.paypal.me/AKSHAYASWAROOP
@@ -62,6 +62,9 @@ If you enjoyed this plugin then please put a review, that will encourage me to b
 1. WooCommerce orders admin.
 
 == Changelog ==
+
+= 2.3.2 - 2026-10-05 =
+* Fix - Orders with several items sharing the same stock, such as variations whose stock is managed on the parent product, now split correctly. Each item used to count the full stock, so these orders were not split at all.
 
 = 2.3.1 - 2026-10-01 =
 * Fix - Variable products now split correctly. Stock was read from the parent product, which has none when stock is managed per variation.
