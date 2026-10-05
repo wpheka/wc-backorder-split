@@ -6,7 +6,7 @@ Requires PHP: 8.1
 Tested up to: 7.1.2
 WC requires at least: 4.2
 WC tested up to: 11.1.2
-Stable tag: 2.3.2
+Stable tag: 2.3.3
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 Donate link: https://www.paypal.me/AKSHAYASWAROOP
@@ -62,6 +62,9 @@ If you enjoyed this plugin then please put a review, that will encourage me to b
 1. WooCommerce orders admin.
 
 == Changelog ==
+
+= 2.3.3 - 2026-10-05 =
+* Fix - Closing the review request with its X now hides it for 14 days for that user instead of returning on the next Dashboard load.
 
 = 2.3.2 - 2026-10-05 =
 * Fix - Orders with several items sharing the same stock, such as variations whose stock is managed on the parent product, now split correctly. Each item used to count the full stock, so these orders were not split at all.
