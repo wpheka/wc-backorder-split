@@ -30,5 +30,8 @@ checks:
 exclude:
   - framework/
   - languages/
+  # The functional suite drives the site from outside; it never ships (the
+  # release rsync excludes tests/), so it is not held to plugin standards.
+  - tests/
 
 fail_on: error
