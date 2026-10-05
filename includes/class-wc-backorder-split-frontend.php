@@ -16,6 +16,20 @@ if ( ! defined( 'ABSPATH' ) ) {
 class WC_Backorder_Split_Frontend {
 
 	/**
+	 * Stock still unallocated while one order's lines are recorded, keyed by
+	 * the id of the product that owns the stock (the parent, for variations
+	 * whose stock it manages). Reset for each new order and each new pass over
+	 * the same order.
+	 *
+	 * @var array{order: WC_Order|null, keys: string[], remaining: int[]}
+	 */
+	private static $allocation = array(
+		'order'     => null,
+		'keys'      => array(),
+		'remaining' => array(),
+	);
+
+	/**
 	 * Hook actions and filters
 	 *
 	 * @since 1.0.0
@@ -93,7 +107,7 @@ class WC_Backorder_Split_Frontend {
 		$product = $item->get_product();
 
 		if ( $product && $product->managing_stock() && $product->backorders_allowed() && is_numeric( $product->get_stock_quantity() ) ) {
-			$item->add_meta_data( '_stock_quantity_at_add', max( 0, (int) $product->get_stock_quantity() ), true );
+			$item->add_meta_data( '_stock_quantity_at_add', self::allocate_stock( $product, $_order, $_cart_item_key, $item->get_quantity() ), true );
 			return;
 		}
 
@@ -421,6 +435,47 @@ class WC_Backorder_Split_Frontend {
 	// =========================================================================
 	// Private helpers
 	// =========================================================================
+
+	/**
+	 * How much of a line's quantity is covered by stock, given the lines of the
+	 * same order recorded before it.
+	 *
+	 * Lines that draw on one stock pool share it: two variations whose stock the
+	 * parent manages, or the same product on two lines. Reading the stock level
+	 * for each line on its own gave every line the full pool, so an order for
+	 * 2 + 2 against a pool of 2 recorded both lines as in stock and nothing was
+	 * split. Grouped by get_stock_managed_by_id(), as WooCommerce groups them
+	 * when it reduces stock.
+	 *
+	 * @param WC_Product $product       Line product.
+	 * @param WC_Order   $order         Order being built.
+	 * @param string     $cart_item_key Cart item key of the line.
+	 * @param int        $quantity      Line quantity.
+	 * @return int Stock available to this line, never below zero.
+	 */
+	private static function allocate_stock( $product, $order, $cart_item_key, $quantity ) {
+		// A new order, or a second pass over the same one (the Store API can
+		// rebuild a draft order's lines in one request), starts from the real
+		// stock levels again.
+		if ( self::$allocation['order'] !== $order || in_array( (string) $cart_item_key, self::$allocation['keys'], true ) ) {
+			self::$allocation = array(
+				'order'     => $order,
+				'keys'      => array(),
+				'remaining' => array(),
+			);
+		}
+		self::$allocation['keys'][] = (string) $cart_item_key;
+
+		$owner = (int) $product->get_stock_managed_by_id();
+		if ( ! isset( self::$allocation['remaining'][ $owner ] ) ) {
+			self::$allocation['remaining'][ $owner ] = max( 0, (int) $product->get_stock_quantity() );
+		}
+
+		$available                               = self::$allocation['remaining'][ $owner ];
+		self::$allocation['remaining'][ $owner ] = max( 0, $available - max( 0, (int) $quantity ) );
+
+		return $available;
+	}
 
 	/**
 	 * Log an error to WooCommerce > Status > Logs, source wc-backorder-split.
