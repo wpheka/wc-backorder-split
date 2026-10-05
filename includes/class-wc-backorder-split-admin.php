@@ -27,6 +27,7 @@ class WC_Backorder_Split_Admin
         add_action('woocommerce_admin_order_data_after_order_details', array( __CLASS__, 'display_linked_orders' ), 10, 1);
         add_action('admin_notices', array( __CLASS__, 'review_notice' ));
         add_action('admin_init', array( __CLASS__, 'maybe_dismiss_review_notice' ));
+        add_action('wp_ajax_wcbs_snooze_review', array( __CLASS__, 'snooze_review_notice' ));
         add_action('admin_notices', array( __CLASS__, 'display_admin_notices' ));
     }
 
@@ -167,6 +168,12 @@ class WC_Backorder_Split_Admin
             return;
         }
 
+        // Closed with its X: asked again in 14 days, for this user only.
+        $snoozed_until = (int) get_user_meta(get_current_user_id(), 'wcbs_review_snoozed_until', true);
+        if ($snoozed_until > time()) {
+            return;
+        }
+
         if (3 > (int) get_option('wcbs_split_count', 0)) {
             return;
         }
@@ -186,7 +193,7 @@ class WC_Backorder_Split_Admin
             'wcbs_dismiss_review'
         );
         ?>
-        <div class="notice notice-info is-dismissible">
+        <div id="wcbs-review-notice" class="notice notice-info is-dismissible" data-nonce="<?php echo esc_attr(wp_create_nonce('wcbs_snooze_review')); ?>">
             <p>
                 <?php
                 printf(
@@ -200,7 +207,37 @@ class WC_Backorder_Split_Admin
                 ?>
             </p>
         </div>
+        <script>
+        // WordPress hides an is-dismissible notice on its X but remembers
+        // nothing, so without this the prompt was back on the next load.
+        jQuery(function ($) {
+            $(document).on('click', '#wcbs-review-notice .notice-dismiss', function () {
+                $.post(ajaxurl, { action: 'wcbs_snooze_review', _ajax_nonce: $('#wcbs-review-notice').data('nonce') });
+            });
+        });
+        </script>
         <?php
+    }
+
+    /**
+     * Snooze the review notice for 14 days when its X is clicked.
+     *
+     * Per user, like the permanent dismissal: closing a notice is one person's
+     * decision. "Don't ask again" still hides it for good.
+     *
+     * @since 2.3.3
+     * @return void
+     */
+    public static function snooze_review_notice()
+    {
+        check_ajax_referer('wcbs_snooze_review');
+
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error(null, 403);
+        }
+
+        update_user_meta(get_current_user_id(), 'wcbs_review_snoozed_until', time() + 14 * DAY_IN_SECONDS);
+        wp_send_json_success();
     }
 
     /**
