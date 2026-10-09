@@ -15,7 +15,7 @@ A simple plugin that helps you split the WooCommerce order for the products that
 == Description ==
 WC Backorder Split is a free WooCommerce extension that **automatically** creates a separate order with status "Backordered" for the products that you don't have in stock (Products on backorder).
 
-= Key Features =
+### ✂️ KEY FEATURES
 
 * **Automatic Order Splitting** - Automatically splits orders when products are on backorder
 * **Complete Order Data Transfer** - Copies shipping methods, payment info, fees, coupons and taxes to backorder
@@ -26,7 +26,7 @@ WC Backorder Split is a free WooCommerce extension that **automatically** create
 * **HPOS Compatible** - Full support for WooCommerce High-Performance Order Storage
 * **Developer Friendly** - Extensive hooks and filters for customization
 
-= Developer Features =
+### 🛠️ DEVELOPER FEATURES
 
 Developers can extend the plugin using built-in hooks:
 
