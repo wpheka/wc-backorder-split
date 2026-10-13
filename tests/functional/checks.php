@@ -87,6 +87,34 @@ try {
 		wcbs_t_result( "$label: customer details copied", 'zz-wcbs-guest@example.invalid' === $child->get_billing_email() && '1 Test St' === $child->get_shipping_address_1(), $child->get_billing_email() . ' / ' . $child->get_shipping_address_1() );
 		$notes = function ( $id ) { return implode( ' | ', array_map( function ( $n ) { return wp_strip_all_tags( $n->content ); }, wc_get_order_notes( array( 'order_id' => $id ) ) ) ); };
 		wcbs_t_result( "$label: order notes link the two orders", false !== strpos( $notes( $oid ), (string) $child_id ) && false !== strpos( $notes( $child_id ), (string) $oid ), $notes( $oid ) . ' // ' . $notes( $child_id ) );
+
+		// The order screen must not list the internal stock reading under the
+		// product. WP-CLI is not an admin request, so load the admin hooks as
+		// one would, then render WooCommerce's own item meta view.
+		if ( ! class_exists( 'WC_Backorder_Split_Admin' ) ) {
+			include_once wcbs()->plugin_path() . 'includes/class-wc-backorder-split-admin.php';
+		}
+		WC_Backorder_Split_Admin::init();
+		$meta_view = function ( $o ) {
+			$html = '';
+			foreach ( $o->get_items() as $item_id => $item ) {
+				ob_start();
+				include WC_ABSPATH . 'includes/admin/meta-boxes/views/html-order-item-meta.php';
+				$html .= ob_get_clean();
+			}
+			return $html;
+		};
+
+		$kept = array_map(
+			function ( $i ) {
+				return $i->get_meta( '_stock_quantity_at_add' );
+			},
+			array_values( $order->get_items() )
+		);
+		// A view that fails to render would hide the key too, so require real item meta output.
+		$views = $meta_view( $order ) . $meta_view( $child );
+		wcbs_t_result( "$label: order screen hides _stock_quantity_at_add on both orders", false !== strpos( $views, 'class="view"' ) && false === strpos( $views, '_stock_quantity_at_add' ), '' === $views ? 'the item meta view rendered nothing' : 'shown in the item meta' );
+		wcbs_t_result( "$label: hidden _stock_quantity_at_add is still stored on the item", array( '1' ) === array_map( 'strval', $kept ), wp_json_encode( $kept ) );
 	}
 
 	WC_Backorder_Split_Frontend::split_backorder_products( $oid );

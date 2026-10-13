@@ -14,6 +14,8 @@
 #
 # Needs: WP-CLI, Node with Playwright (PW_NODE_PATH, or one of the node_modules
 # below), a site with Cash on Delivery enabled and guest checkout allowed.
+# Optional: WP_CLI="php /path/to/wp-cli.phar" when node cannot start `wp`, and
+# PW_CHANNEL=chrome to use the installed Google Chrome.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -29,6 +31,23 @@ done
 [ -n "${NODE_PATH:-}" ] || { echo "Playwright not found; set PW_NODE_PATH"; exit 2; }
 
 wpe() { wp --path="$WP_PATH" eval-file "$@" 2>&1 | grep -v -e '^Deprecated' -e '^$' -e 'Undefined array key 1' ; }
+
+# Runs one browser script. Never "|| true" a test step: a non-zero exit is a
+# FAIL, and so is a script that stopped before its final "ran to the end" case
+# (an unsettled promise lets node exit 0 halfway through).
+run_node() {
+  local script="$1"; shift
+  node "$HERE/$script" "$@"
+  local code=$?
+  if [ "$code" -ne 0 ]; then
+    echo "  FAIL|$script exited with code $code"
+    echo "FAIL|$script exited with code $code" >> "$STATE/results"
+  fi
+  if ! grep -qxF "PASS|$script: ran to the end" "$STATE/results" 2>/dev/null; then
+    echo "  FAIL|$script: ran to the end -- the script stopped before its last case"
+    echo "FAIL|$script: ran to the end -- the script stopped before its last case" >> "$STATE/results"
+  fi
+}
 
 HPOS_BEFORE=$(wp --path="$WP_PATH" option get woocommerce_custom_orders_table_enabled 2>/dev/null | tail -1)
 cleanup() {
@@ -50,11 +69,11 @@ echo "== setup"
 wpe "$HERE/setup.php" | sed 's/^/  /' || exit 2
 
 echo "== checkouts (HPOS)"
-node "$HERE/checkout.js" hpos || true
+run_node checkout.js hpos
 
 echo "== split internals, admin and storage cases"
 wpe "$HERE/checks.php" internals | sed 's/^/  /'
-node "$HERE/admin.js" || true
+run_node admin.js
 if [ "$HPOS_BEFORE" = "yes" ]; then
   wp --path="$WP_PATH" option update woocommerce_custom_orders_table_enabled no >/dev/null 2>&1
   wpe "$HERE/checks.php" legacy | sed 's/^/  /'
@@ -64,6 +83,7 @@ if [ "$HPOS_BEFORE" = "yes" ]; then
 fi
 
 echo "== debug.log"
+# grep finds nothing in a clean log and exits 1; "|| true" only reads the log here.
 NEW=$(tail -c +$((OFFSET + 1)) "$LOG" 2>/dev/null | grep -v 'PHP Deprecated' | grep 'wc-backorder-split' || true)
 if [ -n "$NEW" ]; then echo "FAIL debug.log has new errors from this plugin:"; echo "$NEW" | cut -c1-300; echo "FAIL|debug.log clean" >> "$STATE/results"; else echo "PASS|debug.log clean" >> "$STATE/results"; fi
 

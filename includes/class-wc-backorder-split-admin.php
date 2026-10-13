@@ -29,7 +29,23 @@ class WC_Backorder_Split_Admin
         add_action('admin_init', array( __CLASS__, 'maybe_dismiss_review_notice' ));
         add_action('wp_ajax_wcbs_snooze_review', array( __CLASS__, 'snooze_review_notice' ));
         add_action('admin_notices', array( __CLASS__, 'display_admin_notices' ));
+		add_filter( 'woocommerce_hidden_order_itemmeta', array( __CLASS__, 'hide_order_item_meta' ) );
     }
+
+	/**
+	 * Hide the plugin's internal order item meta on the order screen.
+	 *
+	 * _stock_quantity_at_add is the stock level recorded at checkout, which
+	 * the split uses to tell how much of a line was in stock. It is for the
+	 * plugin only, so it is kept on the item but not listed under the product.
+	 *
+	 * @param string[] $hidden_keys Order item meta keys hidden from the order screen.
+	 * @return string[]
+	 */
+	public static function hide_order_item_meta( $hidden_keys ) {
+		$hidden_keys[] = '_stock_quantity_at_add';
+		return $hidden_keys;
+	}
 
     /**
      * Enqueue admin styles only on relevant WooCommerce pages.

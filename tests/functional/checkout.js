@@ -10,8 +10,20 @@ const path = require('path');
 const STATE = process.env.WCBS_STATE;
 const ids = JSON.parse(fs.readFileSync(path.join(STATE, 'ids.json'), 'utf8'));
 const BASE = ids.home.replace(/\/$/, '');
-const php = (file, ...args) => execFileSync('wp', ['--path=' + process.env.WP_PATH, 'eval-file', path.join(__dirname, file), ...args], { encoding: 'utf8', env: process.env, stdio: ['ignore', 'pipe', 'ignore'] }).trim().split('\n').filter(l => !l.startsWith('Deprecated')).pop();
+// WP_CLI overrides how WP-CLI is called (words split on spaces) on a machine
+// where `wp` is a script node cannot start: WP_CLI="php /path/to/wp-cli.phar".
+const WP_CLI = (process.env.WP_CLI || 'wp').split(' ');
+const php = (file, ...args) => execFileSync(WP_CLI[0], [...WP_CLI.slice(1), '--path=' + process.env.WP_PATH, 'eval-file', path.join(__dirname, file), ...args], { encoding: 'utf8', env: process.env, stdio: ['ignore', 'pipe', 'ignore'] }).trim().split('\n').filter(l => !l.startsWith('Deprecated')).pop();
 const record = (ok, name, detail) => { const line = `${ok ? 'PASS' : 'FAIL'}|${name}${ok ? '' : ' -- ' + detail}`; fs.appendFileSync(path.join(STATE, 'results'), line + '\n'); console.log('  ' + line); };
+// A crash anywhere in this script is a FAIL, never a silent stop: run.sh also
+// fails a non-zero exit and a missing "ran to the end" case.
+const crashed = kind => e => {
+  const lines = String((e && e.stack) || e).split('\n');
+  try { record(false, `checkout.js: ${kind}`, [lines[0], (lines.find(l => /^\s+at /.test(l)) || '').trim()].filter(Boolean).join(' ')); } catch (ignored) {}
+  process.exit(1);
+};
+process.on('unhandledRejection', crashed('no unhandled promise rejection'));
+process.on('uncaughtException', crashed('no uncaught exception'));
 const mailLines = () => { try { return fs.readFileSync(path.join(STATE, 'mail.log'), 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse); } catch (e) { return []; } };
 
 const N = { s1: 'ZZ WCBS Stock1', s5: 'ZZ WCBS Stock5', vS: 'ZZ WCBS Shared - S', vM: 'ZZ WCBS Shared - M', own: 'ZZ WCBS Own - S' };
@@ -68,7 +80,9 @@ async function place(page, mode, cart) {
 }
 
 (async () => {
-  const browser = await chromium.launch();
+  // PW_CHANNEL=chrome runs the installed Google Chrome instead of Playwright's
+  // bundled Chromium (for a machine without the matching browser download).
+  const browser = await chromium.launch(process.env.PW_CHANNEL ? { channel: process.env.PW_CHANNEL } : {});
   const mailReport = [];
   for (const [mode, name, stock, cart, expOrig, expChild] of CASES) {
     const label = `checkout ${mode}: ${name}`;
@@ -101,4 +115,5 @@ async function place(page, mode, cart) {
     record(leaked.length === 0, `emails: nothing sent about backorder #${m.child} (${m.label.replace('checkout ', '')})`, `sent: ${JSON.stringify(leaked)}`);
   }
   await browser.close();
+  record(true, 'checkout.js: ran to the end');
 })();
