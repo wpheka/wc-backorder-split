@@ -128,3 +128,7 @@ try {
 } catch ( Throwable $e ) {
 	wcbs_t_result( "$label: split ran without an exception", false, get_class( $e ) . ': ' . $e->getMessage() );
 }
+
+// Last line: run.sh fails the run when this is missing, so a PHP fatal error or an early exit
+// above can never drop the remaining cases without a FAIL.
+wcbs_t_result( "checks.php ($mode): ran to the end", true );

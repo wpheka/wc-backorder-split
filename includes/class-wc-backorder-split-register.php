@@ -27,6 +27,12 @@ class WC_Backorder_Split_Register
         // Add new order status in bulk actions (Order's Listing).
         add_filter('bulk_actions-edit-shop_order', array( __CLASS__, 'wcbs_get_custom_order_status_bulk' ), 10, 2);
 
+		// The same action on the HPOS orders screen (WooCommerce > Orders when High-Performance
+		// Order Storage is on, the default). WooCommerce's own handler there applies any
+		// registered "mark_<status>" action after its capability and nonce checks, as on the
+		// legacy screen, so no handler of our own is needed.
+		add_filter( 'bulk_actions-woocommerce_page_wc-orders', array( __CLASS__, 'wcbs_get_custom_order_status_bulk' ), 10, 2 );
+
         // Register new order status.
         add_filter('wc_order_statuses', array( __CLASS__, 'wcbs_add_backorder_order_status' ));
         add_filter('woocommerce_register_shop_order_post_statuses', array( __CLASS__, 'wcbs_register_new_order_status' ));

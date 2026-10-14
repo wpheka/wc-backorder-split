@@ -34,18 +34,33 @@ wpe() { wp --path="$WP_PATH" eval-file "$@" 2>&1 | grep -v -e '^Deprecated' -e '
 
 # Runs one browser script. Never "|| true" a test step: a non-zero exit is a
 # FAIL, and so is a script that stopped before its final "ran to the end" case
-# (an unsettled promise lets node exit 0 halfway through).
+# (an unsettled promise lets node exit 0 halfway through). A script run more than once
+# names each run with RUN_TAG (for example "bulk.js (legacy)") and records its last case
+# under that name, so every run is checked on its own.
 run_node() {
   local script="$1"; shift
+  local tag="${RUN_TAG:-$script}"
   node "$HERE/$script" "$@"
   local code=$?
   if [ "$code" -ne 0 ]; then
-    echo "  FAIL|$script exited with code $code"
-    echo "FAIL|$script exited with code $code" >> "$STATE/results"
+    echo "  FAIL|$tag exited with code $code"
+    echo "FAIL|$tag exited with code $code" >> "$STATE/results"
   fi
-  if ! grep -qxF "PASS|$script: ran to the end" "$STATE/results" 2>/dev/null; then
-    echo "  FAIL|$script: ran to the end -- the script stopped before its last case"
-    echo "FAIL|$script: ran to the end -- the script stopped before its last case" >> "$STATE/results"
+  if ! grep -qxF "PASS|$tag: ran to the end" "$STATE/results" 2>/dev/null; then
+    echo "  FAIL|$tag: ran to the end -- the script stopped before its last case"
+    echo "FAIL|$tag: ran to the end -- the script stopped before its last case" >> "$STATE/results"
+  fi
+}
+
+# Runs checks.php in one mode, with the same guard as run_node: a PHP fatal error or an
+# early exit stops it before its last line, "checks.php (<mode>): ran to the end", and that
+# missing line is a FAIL.
+run_php() {
+  local mode="$1"
+  wpe "$HERE/checks.php" "$mode" | sed 's/^/  /'
+  if ! grep -qxF "PASS|checks.php ($mode): ran to the end" "$STATE/results" 2>/dev/null; then
+    echo "  FAIL|checks.php ($mode): ran to the end -- it stopped before its last case"
+    echo "FAIL|checks.php ($mode): ran to the end -- it stopped before its last case" >> "$STATE/results"
   fi
 }
 
@@ -72,11 +87,14 @@ echo "== checkouts (HPOS)"
 run_node checkout.js hpos
 
 echo "== split internals, admin and storage cases"
-wpe "$HERE/checks.php" internals | sed 's/^/  /'
+run_php internals
 run_node admin.js
+STORAGE_NOW=$([ "$HPOS_BEFORE" = "yes" ] && echo hpos || echo legacy)
+RUN_TAG="bulk.js ($STORAGE_NOW)" run_node bulk.js "$STORAGE_NOW"
 if [ "$HPOS_BEFORE" = "yes" ]; then
   wp --path="$WP_PATH" option update woocommerce_custom_orders_table_enabled no >/dev/null 2>&1
-  wpe "$HERE/checks.php" legacy | sed 's/^/  /'
+  run_php legacy
+  RUN_TAG="bulk.js (legacy)" run_node bulk.js legacy
   wp --path="$WP_PATH" option update woocommerce_custom_orders_table_enabled yes >/dev/null 2>&1
   BACK=$(wp --path="$WP_PATH" option get woocommerce_custom_orders_table_enabled 2>/dev/null | tail -1)
   [ "$BACK" = "yes" ] && echo "PASS|order storage switched back to HPOS" >> "$STATE/results" || echo "FAIL|order storage switched back to HPOS -- option is $BACK" >> "$STATE/results"
