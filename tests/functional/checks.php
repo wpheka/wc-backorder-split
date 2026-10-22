@@ -21,6 +21,8 @@ if ( ( 'legacy' === $mode ) === $on_hpos ) {
 	return;
 }
 
+$oid      = 0;
+$child_id = 0;
 try {
 	if ( 'internals' === $mode ) {
 		$statuses = wc_get_order_statuses();
@@ -127,6 +129,22 @@ try {
 	wcbs_t_result( "$label: running the split twice creates no second backorder", $again === $child_id && 1 === $children, "children: $children" );
 } catch ( Throwable $e ) {
 	wcbs_t_result( "$label: split ran without an exception", false, get_class( $e ) . ': ' . $e->getMessage() );
+} finally {
+	// cleanup.php runs on whatever storage the site is left on and finds orders through the
+	// HPOS table. Orders made here exist only in legacy storage when sync is off, so delete
+	// them now, while legacy storage is still active, whether the split passed or threw.
+	if ( 'legacy' === $mode && $oid ) {
+		$parent = wc_get_order( $oid );
+		if ( ! $child_id && $parent ) {
+			$child_id = (int) $parent->get_meta( '_wcbs_backorder_id' );
+		}
+		$child = $child_id ? wc_get_order( $child_id ) : null;
+		foreach ( array( $child, $parent ) as $test_order ) {
+			if ( $test_order ) {
+				$test_order->delete( true );
+			}
+		}
+	}
 }
 
 // Last line: run.sh fails the run when this is missing, so a PHP fatal error or an early exit
