@@ -57,6 +57,7 @@ try {
 	$ship->set_method_title( 'ZZ Flat rate' );
 	$ship->set_method_id( 'flat_rate' );
 	$ship->set_total( 7 );
+	$ship->add_meta_data( 'Items', 'ZZ WCBS Stock1 &times; 3', true );
 	$order->add_item( $ship );
 	$fee = new WC_Order_Item_Fee();
 	$fee->set_name( 'ZZ Handling' );
@@ -66,7 +67,8 @@ try {
 	$order->calculate_totals();
 	$order->set_status( 'processing' );
 	$order->save();
-	$oid = $order->get_id();
+	$oid  = $order->get_id();
+	$paid = (float) $order->get_total();
 	$recorded = array_map( function ( $i ) { return $i->get_meta( '_stock_quantity_at_add' ); }, array_values( wc_get_order( $oid )->get_items() ) );
 	if ( array( '1' ) !== array_map( 'strval', $recorded ) ) {
 		wcbs_t_result( "$label: test order built with the recorded stock level", false, wp_json_encode( $recorded ) );
@@ -82,13 +84,17 @@ try {
 		wcbs_t_result( "$label: quantities move (1 kept, 2 backordered)", array( 'ZZ WCBS Stock1' => 1 ) === wcbs_t_items( $order ) && array( 'ZZ WCBS Stock1' => 2 ) === wcbs_t_items( $child ), wp_json_encode( array( wcbs_t_items( $order ), wcbs_t_items( $child ) ) ) );
 		wcbs_t_result( "$label: backorder order has the Backordered status", 'backordered' === $child->get_status(), $child->get_status() );
 		$titles = array_map( function ( $i ) { return $i->get_method_title(); }, array_values( $child->get_items( 'shipping' ) ) );
-		wcbs_t_result( "$label: shipping copied to the backorder order", in_array( 'ZZ Flat rate', $titles, true ), wp_json_encode( $titles ) );
-		$fees = array_map( function ( $i ) { return $i->get_name(); }, array_values( $child->get_items( 'fee' ) ) );
-		wcbs_t_result( "$label: fees copied to the backorder order", in_array( 'ZZ Handling', $fees, true ), wp_json_encode( $fees ) );
-		wcbs_t_result( "$label: coupon copied to the backorder order", in_array( 'zzwcbs5', $child->get_coupon_codes(), true ), wp_json_encode( $child->get_coupon_codes() ) );
+		wcbs_t_result( "$label: shipping method copied to the backorder order", array( 'ZZ Flat rate' ) === $titles, wp_json_encode( $titles ) );
+		wcbs_t_result( "$label: backorder shipping costs nothing", 0.0 === (float) $child->get_shipping_total() && 0.0 === (float) $child->get_shipping_tax(), $child->get_shipping_total() . ' tax ' . $child->get_shipping_tax() );
+		wcbs_t_result( "$label: fees and coupon stay on the original only", ! $child->get_items( 'fee' ) && ! $child->get_coupon_codes() && $order->get_items( 'fee' ) && array( 'zzwcbs5' ) === $order->get_coupon_codes(), wp_json_encode( array( count( $child->get_items( 'fee' ) ), $child->get_coupon_codes(), $order->get_coupon_codes() ) ) );
+		wcbs_t_result( "$label: original keeps its shipping cost", 7.0 === (float) $order->get_shipping_total(), $order->get_shipping_total() );
+		wcbs_t_result( "$label: the two orders add up to what the customer paid", abs( (float) $order->get_total() + (float) $child->get_total() - $paid ) < 0.001, $order->get_total() . ' + ' . $child->get_total() . " vs $paid" );
 		wcbs_t_result( "$label: customer details copied", 'zz-wcbs-guest@example.invalid' === $child->get_billing_email() && '1 Test St' === $child->get_shipping_address_1(), $child->get_billing_email() . ' / ' . $child->get_shipping_address_1() );
 		$notes = function ( $id ) { return implode( ' | ', array_map( function ( $n ) { return wp_strip_all_tags( $n->content ); }, wc_get_order_notes( array( 'order_id' => $id ) ) ) ); };
 		wcbs_t_result( "$label: order notes link the two orders", false !== strpos( $notes( $oid ), (string) $child_id ) && false !== strpos( $notes( $child_id ), (string) $oid ), $notes( $oid ) . ' // ' . $notes( $child_id ) );
+		wcbs_t_result( "$label: backorder note says where shipping was charged", false !== strpos( $notes( $child_id ), "Shipping was charged on order #$oid." ), $notes( $child_id ) );
+		$items_meta = array_map( function ( $i ) { return $i->get_meta( 'Items' ); }, array_values( $child->get_items( 'shipping' ) ) );
+		wcbs_t_result( "$label: backorder shipping lists only its own items", array( 'ZZ WCBS Stock1 &times; 2' ) === $items_meta, wp_json_encode( $items_meta ) );
 
 		// The order screen must not list the internal stock reading under the
 		// product. WP-CLI is not an admin request, so load the admin hooks as
@@ -127,9 +133,92 @@ try {
 		$children = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = '_wcbs_parent_order_id' AND meta_value = %s", (string) $oid ) );
 	}
 	wcbs_t_result( "$label: running the split twice creates no second backorder", $again === $child_id && 1 === $children, "children: $children" );
+
+	// More money cases on their own orders, deleted at once on either storage.
+	$money_case = function ( $name, $setup ) use ( $ids, $label ) {
+		$made = array();
+		try {
+			wc_update_product_stock( wc_get_product( $ids['s1'] ), 1, 'set' );
+			$o = wc_create_order();
+			$o->set_billing_email( 'zz-wcbs-guest@example.invalid' );
+			$o->set_payment_method( 'cod' );
+			$o->add_product( wc_get_product( $ids['s1'] ), 3 );
+			foreach ( $o->get_items() as $line ) {
+				$line->add_meta_data( '_stock_quantity_at_add', 1, true );
+			}
+			$s = new WC_Order_Item_Shipping();
+			$s->set_method_title( 'ZZ Flat rate' );
+			$s->set_method_id( 'flat_rate' );
+			$s->set_total( 7 );
+			$o->add_item( $s );
+			$setup( $o );
+			$o->calculate_totals();
+			$o->set_status( 'processing' );
+			$o->save();
+			$made[] = $o->get_id();
+			$paid   = (float) $o->get_total();
+
+			WC_Backorder_Split_Frontend::split_backorder_products( $o->get_id() );
+			$o      = wc_get_order( $o->get_id() );
+			$c      = wc_get_order( (int) $o->get_meta( '_wcbs_backorder_id' ) );
+			$made[] = $c ? $c->get_id() : 0;
+			return array( $o, $c, $paid );
+		} finally {
+			// Deleted in the outer finally, also when a case throws.
+			$GLOBALS['wcbs_t_made'] = array_merge( $GLOBALS['wcbs_t_made'] ?? array(), $made );
+		}
+	};
+
+	// A percent coupon: each order keeps its own share of the discount, counted once.
+	if ( empty( $ids['coupon_pct'] ) ) {
+		$c = new WC_Coupon();
+		$c->set_code( 'zzwcbs10pct' );
+		$c->set_discount_type( 'percent' );
+		$c->set_amount( 10 );
+		$ids['coupon_pct'] = $c->save();
+		wcbs_t_save_ids( $ids );
+	}
+	list( $o, $c, $paid ) = $money_case( 'percent', function ( $o ) { $o->apply_coupon( 'zzwcbs10pct' ); } );
+	wcbs_t_result( "$label: percent coupon: discount split, counted once", $c && abs( (float) $o->get_total() + (float) $c->get_total() - $paid ) < 0.001 && ! $c->get_coupon_codes() && abs( (float) $o->get_discount_total() + (float) $c->get_discount_total() - 3.0 ) < 0.001, $c ? $o->get_total() . ' + ' . $c->get_total() . " vs $paid; discounts " . $o->get_discount_total() . ' + ' . $c->get_discount_total() : 'no backorder' );
+
+	// Free shipping on the original: no "Shipping was charged" note on the backorder.
+	list( $o, $c, $paid ) = $money_case(
+		'free shipping',
+		function ( $o ) {
+			foreach ( $o->get_items( 'shipping' ) as $s ) {
+				$s->set_total( 0 );
+			}
+		}
+	);
+	$free_notes = $c ? implode( ' | ', wp_list_pluck( wc_get_order_notes( array( 'order_id' => $c->get_id() ) ), 'content' ) ) : '';
+	wcbs_t_result( "$label: free shipping: no note about where shipping was charged", $c && false === strpos( $free_notes, 'Shipping was charged' ) && 1 === count( $c->get_items( 'shipping' ) ), $c ? $free_notes : 'no backorder' );
+
+	// Taxed shipping: the backorder's shipping tax is zero too.
+	add_filter( 'pre_option_woocommerce_calc_taxes', function () { return 'yes'; } );
+	$rate_id = WC_Tax::_insert_tax_rate( array( 'tax_rate_country' => '', 'tax_rate' => '10.0000', 'tax_rate_name' => 'ZZ WCBS tax', 'tax_rate_priority' => 1, 'tax_rate_shipping' => 1, 'tax_rate_class' => '' ) );
+	try {
+		list( $o, $c, $paid ) = $money_case( 'taxed', function ( $o ) {} );
+		wcbs_t_result( "$label: taxed shipping: backorder shipping and its tax are zero", $c && 0.0 === (float) $c->get_shipping_total() && 0.0 === (float) $c->get_shipping_tax() && 0.7 === round( (float) $o->get_shipping_tax(), 2 ), $c ? $c->get_shipping_total() . ' tax ' . $c->get_shipping_tax() . ', original tax ' . $o->get_shipping_tax() : 'no backorder' );
+		wcbs_t_result( "$label: taxed: the two orders add up to what the customer paid", $c && abs( (float) $o->get_total() + (float) $c->get_total() - $paid ) < 0.001, $c ? $o->get_total() . ' + ' . $c->get_total() . " vs $paid" : 'no backorder' );
+	} finally {
+		WC_Tax::_delete_tax_rate( $rate_id );
+	}
+
+	// wcbs_copy_charges_to_backorder restores the old full copy.
+	$full = function () { return true; };
+	add_filter( 'wcbs_copy_charges_to_backorder', $full );
+	list( $o, $c, $paid ) = $money_case( 'full copy', function ( $o ) { $o->apply_coupon( 'zzwcbs5' ); } );
+	remove_filter( 'wcbs_copy_charges_to_backorder', $full );
+	wcbs_t_result( "$label: filter restores the full copy of shipping and coupon", $c && 7.0 === (float) $c->get_shipping_total() && array( 'zzwcbs5' ) === $c->get_coupon_codes(), $c ? $c->get_shipping_total() . ' ' . wp_json_encode( $c->get_coupon_codes() ) : 'no backorder' );
 } catch ( Throwable $e ) {
 	wcbs_t_result( "$label: split ran without an exception", false, get_class( $e ) . ': ' . $e->getMessage() );
 } finally {
+	foreach ( $GLOBALS['wcbs_t_made'] ?? array() as $made_id ) {
+		$made_order = $made_id ? wc_get_order( $made_id ) : null;
+		if ( $made_order ) {
+			$made_order->delete( true );
+		}
+	}
 	// cleanup.php runs on whatever storage the site is left on and finds orders through the
 	// HPOS table. Orders made here exist only in legacy storage when sync is off, so delete
 	// them now, while legacy storage is still active, whether the split passed or threw.

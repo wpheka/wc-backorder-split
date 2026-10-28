@@ -2,7 +2,7 @@
 /**
  * WC Backorder Split Front-End
  *
- * @version 2.2.0
+ * @version 2.4.0
  * @package WCBS
  */
 
@@ -379,12 +379,20 @@ class WC_Backorder_Split_Frontend {
 				$backorder_order->add_item( $target_item );
 			}
 
-			// ---------------------------------------------------------------
-			// 7. Clone shipping, fees, and coupons (preserves all item meta)
-			// ---------------------------------------------------------------
-			self::copy_shipping_to_backorder( $order, $backorder_order );
-			self::copy_fees_to_backorder( $order, $backorder_order );
-			self::copy_coupons_to_backorder( $order, $backorder_order );
+			/*
+			 * 7. Shipping, fees and coupons. The customer paid them once, on the
+			 * original order, so by default the backorder only gets the shipping
+			 * method at zero cost (the warehouse still sees how to ship it). Fees
+			 * and coupon lines stay on the original; the moved lines already carry
+			 * their share of any discount.
+			 */
+			if ( apply_filters( 'wcbs_copy_charges_to_backorder', false, $order, $backorder_order ) ) {
+				self::copy_shipping_to_backorder( $order, $backorder_order );
+				self::copy_fees_to_backorder( $order, $backorder_order );
+				self::copy_coupons_to_backorder( $order, $backorder_order );
+			} else {
+				self::copy_shipping_method_to_backorder( $order, $backorder_order, $backorder_items );
+			}
 
 			$backorder_status = apply_filters( 'wcbs_backorder_status', 'backordered', $order_id, $order );
 			$backorder_order->set_status( $backorder_status );
@@ -407,16 +415,27 @@ class WC_Backorder_Split_Frontend {
 
 			$order->add_order_note(
 				sprintf(
+					/* translators: %s: order number */
 					__( 'Backorder items split into order #%s', 'wc-backorder-split' ),
 					$backorder_order->get_id()
 				)
 			);
 			$backorder_order->add_order_note(
 				sprintf(
+					/* translators: %s: order number */
 					__( 'This order contains backordered items from order #%s', 'wc-backorder-split' ),
 					$order->get_id()
 				)
 			);
+			if ( (float) $order->get_shipping_total() > 0 && ! (float) $backorder_order->get_shipping_total() ) {
+				$backorder_order->add_order_note(
+					sprintf(
+						/* translators: %s: original order number */
+						__( 'Shipping was charged on order #%s.', 'wc-backorder-split' ),
+						$order->get_id()
+					)
+				);
+			}
 
 			// ---------------------------------------------------------------
 			// 8. Schedule WooCommerce Admin analytics re-import for both orders
@@ -584,7 +603,42 @@ class WC_Backorder_Split_Frontend {
 	}
 
 	/**
+	 * Copy each shipping method to the backorder order at zero cost.
+	 *
+	 * The method, its IDs and meta are kept so the order shows how it ships;
+	 * the cost and its taxes stay on the original order, which the customer
+	 * paid. The "Items" meta is rewritten to list the backorder's own items.
+	 *
+	 * @since 2.4.0
+	 * @param WC_Order $source_order    The original order.
+	 * @param WC_Order $target_order    The backorder order.
+	 * @param array    $backorder_items The moved lines (item and quantity).
+	 */
+	private static function copy_shipping_method_to_backorder( $source_order, $target_order, $backorder_items ) {
+		$names = array();
+		foreach ( $backorder_items as $data ) {
+			$names[] = $data['item']->get_name() . ' &times; ' . wc_stock_amount( $data['quantity'] );
+		}
+
+		foreach ( $source_order->get_items( 'shipping' ) as $shipping_item ) {
+			/** @var WC_Order_Item_Shipping $target_item */
+			$target_item = clone $shipping_item;
+			$target_item->set_id( 0 );
+			$target_item->set_order_id( 0 );
+			$target_item->set_total( 0 );
+			$target_item->set_taxes( array( 'total' => array() ) );
+			if ( '' !== $target_item->get_meta( 'Items' ) ) {
+				$target_item->update_meta_data( 'Items', implode( ', ', $names ) );
+			}
+			$target_item->save();
+			$target_order->add_item( $target_item );
+		}
+	}
+
+	/**
 	 * Clone shipping line items to the backorder order, preserving all meta.
+	 *
+	 * Only used when `wcbs_copy_charges_to_backorder` returns true.
 	 *
 	 * @param WC_Order $source_order
 	 * @param WC_Order $target_order

@@ -3,10 +3,10 @@ Contributors: wpheka, akshayaswaroop
 Tags: wc backorder split, backorder, backorder split, order split, split
 Requires at least: 6.5
 Requires PHP: 8.1
-Tested up to: 7.1.2
+Tested up to: 7.1.3
 WC requires at least: 4.2
-WC tested up to: 11.1.2
-Stable tag: 2.3.3
+WC tested up to: 11.2.1
+Stable tag: 2.4.0
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 Donate link: https://www.paypal.me/AKSHAYASWAROOP
@@ -18,7 +18,9 @@ WC Backorder Split is a free WooCommerce extension that **automatically** create
 ### ✂️ KEY FEATURES
 
 * **Automatic Order Splitting** - Automatically splits orders when products are on backorder
-* **Complete Order Data Transfer** - Copies shipping methods, payment info, fees, coupons and taxes to backorder
+* **Shipping Paid Once** - The backorder order keeps the shipping method at no extra cost. Shipping, fees and coupons stay on the original order, so the two orders add up to what the customer paid
+* **Complete Order Data Transfer** - Copies addresses, payment details and taxes to the backorder order
+* **Overview Page** - WPHEKA > Backorder Split shows how many orders were split, what is backordered now and the latest splits
 * **Order Relationship Tracking** - Links parent and backorder orders for easy reference
 * **Custom Order Status** - Adds "Backordered" status to WooCommerce
 * **Order Notes** - Automatically adds notes explaining the split to both orders
@@ -39,6 +41,9 @@ Developers can extend the plugin using built-in hooks:
 * `wcbs_backorder_status` - Filter to change backorder status
 * `wcbs_meta_fields_to_copy` - Filter to add/remove meta fields copied to backorder
 * `wcbs_disable_emails_on_split` - Filter to control email suppression during split
+* `wcbs_copy_charges_to_backorder` - Filter: return true to copy shipping costs, fees and coupons to the backorder order in full (the behaviour before 2.4.0)
+
+Full documentation: [docs.wpheka.com](https://docs.wpheka.com/plugin/wc-backorder-split)
 
 If you enjoyed this plugin then please put a review, that will encourage me to bring some more …
 
@@ -46,7 +51,7 @@ If you enjoyed this plugin then please put a review, that will encourage me to b
 
 = Minimum Requirements =
 
-* WooCommerce 3.0 or later
+* WooCommerce 4.2 or later
 
 1. Upload 'wc-backorder-split' to the '/wp-content/plugins/' directory or install the plugin through the WordPress plugins screen directly.
 2. Activate the plugin through the 'Plugins' menu in WordPress
@@ -54,14 +59,41 @@ If you enjoyed this plugin then please put a review, that will encourage me to b
 
 == Frequently Asked Questions ==
 
-= How It Works? =
-*check installation*
+= How does it work? =
+When a customer buys more of a product than you have in stock, and the product allows backorders, the extra quantity moves to a new order with the Backordered status. The original order keeps what is in stock, so you can ship it now. Both orders link to each other and get a note.
+
+= When does the split happen? =
+When the order confirmation page loads after checkout, on the classic and the block checkout. Orders added in the admin are not split. An order is split only once, even if the page is reloaded.
+
+= What happens to shipping, fees and coupons? =
+They are paid once, on the original order. The backorder order keeps the shipping method at no extra cost, so you can see how to ship it. Each order's items keep their share of any coupon discount, so the two orders add up to what the customer paid. Developers can restore the full copy with the `wcbs_copy_charges_to_backorder` filter.
+
+= What if nothing in the order is in stock? =
+The order is not split. It gets the Backordered status instead.
+
+= Does the customer get a second order email? =
+No. WooCommerce emails are held while the backorder order is created.
+
+= Does it work with variations? =
+Yes. Variations with their own stock and variations that share their parent's stock are both handled.
+
+= Where do I see what it has done? =
+Under WPHEKA > Backorder Split: orders split, orders backordered now, backorders completed, items moved and the five latest splits.
 
 == Screenshots ==
 
 1. WooCommerce orders admin.
 
 == Changelog ==
+
+= 2.4.0 - 2026-10-28 =
+* Feature - New WPHEKA > Backorder Split page: orders split, backordered now, backorders completed, items moved, the latest splits and how it works.
+* Fix - Shipping is now charged once. The backorder order keeps the shipping method at no extra cost, and fees and coupons stay on the original order, so the two orders add up to what the customer paid. Orders split before 2.4.0 are unchanged.
+* Feature - The `wcbs_copy_charges_to_backorder` filter restores the full copy of shipping, fees and coupons.
+* Fix - The "Change status to backordered" bulk action now shows on the orders screen with High-Performance Order Storage.
+* Fix - The internal stock reading saved on order items is no longer shown under the product on the order screen.
+* Tweak - Minimum WooCommerce version is 4.2 everywhere. Support link goes to the wordpress.org forum.
+* Enhancement - WordPress 7.1.3 and WooCommerce 11.2.1 compatibility.
 
 = 2.3.3 - 2026-10-05 =
 * Fix - Closing the review request with its X now hides it for 14 days for that user instead of returning on the next Dashboard load.

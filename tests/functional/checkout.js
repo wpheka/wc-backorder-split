@@ -71,9 +71,28 @@ async function place(page, mode, cart) {
     for (const [k, v] of Object.entries({ first_name: 'Zz', last_name: 'Test', address_1: '1 Test St', city: 'Winnipeg', postcode: 'R3C 0A1' })) await page.fill(`#${pre}-${k}`, v);
     if (await page.locator(`#${pre}-phone`).count()) await page.fill(`#${pre}-phone`, '2045550100');
     await page.waitForTimeout(2500);
+    // The shipping rates load after the address is typed; placing the order before
+    // they arrive makes WooCommerce ask to "review the updated total". Wait for a
+    // selected rate when the cart needs shipping, then for the cart update to settle.
+    if (await page.locator('.wc-block-components-shipping-rates-control').count()) {
+      await page.locator('.wc-block-components-shipping-rates-control input[type="radio"]:checked').first().waitFor({ timeout: 30000 });
+    }
+    await page.waitForLoadState('networkidle');
     const cod = page.locator('input[value="cod"]');
     if (await cod.count()) await cod.check({ force: true });
+    await page.waitForLoadState('networkidle');
     await page.locator('.wc-block-components-checkout-place-order-button').click();
+    // If the total still changed under the click, WooCommerce shows the notice and
+    // the order is placed by clicking again, as a customer would.
+    const again = page.getByText('place your order again');
+    const first = await Promise.race([
+      page.waitForURL(/order-received/, { timeout: 90000 }).then(() => 'done'),
+      again.waitFor({ timeout: 90000 }).then(() => 'again'),
+    ]);
+    if (first === 'again') {
+      await page.waitForLoadState('networkidle');
+      await page.locator('.wc-block-components-checkout-place-order-button').click();
+    }
   }
   await page.waitForURL(/order-received/, { timeout: 90000 });
   return parseInt(page.url().match(/order-received\/(\d+)/)[1], 10);
@@ -98,6 +117,11 @@ async function place(page, mode, cart) {
       const have = { status: got.status, items: got.items, child: got.child ? { status: got.child.status, items: got.child.items } : null };
       const ok = JSON.stringify(have) === JSON.stringify(want) && (!got.child || got.child.parent_meta === id);
       record(ok, label, `order #${id}: got ${JSON.stringify(have)}, want ${JSON.stringify(want)}`);
+      // Shipping is paid once: the backorder gets the same methods at no cost, and no fees.
+      if (got.child) {
+        const shipOk = got.ship[0] > 0 && got.ship[1] === 7 && got.child.ship[0] === got.ship[0] && got.child.ship[1] === 0 && got.child.fees === 0;
+        record(shipOk, `${label}: $7 shipping stays on the original, backorder has the method at $0`, `original ${JSON.stringify(got.ship)}, backorder ${JSON.stringify(got.child.ship)}, fees ${got.child.fees}`);
+      }
       const sent = mailLines().slice(mailBefore);
       mailReport.push({ label, id, child: got.child ? got.child.id : null, sent });
     } catch (e) {

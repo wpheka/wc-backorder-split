@@ -12,5 +12,6 @@ echo wp_json_encode( array(
 	'status' => $o->get_status(),
 	'edit'   => $o->get_edit_order_url(),
 	'items'  => (object) wcbs_t_items( $o ),
-	'child'  => $child ? array( 'id' => $child_id, 'status' => $child->get_status(), 'items' => (object) wcbs_t_items( $child ), 'parent_meta' => (int) $child->get_meta( '_wcbs_parent_order_id' ), 'edit' => $child->get_edit_order_url() ) : null,
+	'ship'   => array( count( $o->get_items( 'shipping' ) ), (float) $o->get_shipping_total() ),
+	'child'  => $child ? array( 'id' => $child_id, 'status' => $child->get_status(), 'items' => (object) wcbs_t_items( $child ), 'parent_meta' => (int) $child->get_meta( '_wcbs_parent_order_id' ), 'edit' => $child->get_edit_order_url(), 'ship' => array( count( $child->get_items( 'shipping' ) ), (float) $child->get_shipping_total() + (float) $child->get_shipping_tax() ), 'fees' => count( $child->get_items( 'fee' ) ) ) : null,
 ) );

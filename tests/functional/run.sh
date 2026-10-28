@@ -7,7 +7,8 @@
 # Drives the plugin end to end on the local WordPress install: real classic and
 # block checkouts in headless Chromium, the split itself on HPOS and on legacy
 # order storage, what is copied to the backorder order, notes and links, the
-# custom status, the admin screens, the review prompt, and the emails sent.
+# custom status, the admin screens, the WPHEKA > Backorder Split page, the review
+# prompt, and the emails sent.
 # Fails on any case that does not behave, or on new PHP errors from this plugin
 # in debug.log. Test data is created under a "ZZ WCBS" prefix and deleted at the
 # end, even after a failure.
@@ -56,11 +57,11 @@ run_node() {
 # early exit stops it before its last line, "checks.php (<mode>): ran to the end", and that
 # missing line is a FAIL.
 run_php() {
-  local mode="$1"
-  wpe "$HERE/checks.php" "$mode" | sed 's/^/  /'
-  if ! grep -qxF "PASS|checks.php ($mode): ran to the end" "$STATE/results" 2>/dev/null; then
-    echo "  FAIL|checks.php ($mode): ran to the end -- it stopped before its last case"
-    echo "FAIL|checks.php ($mode): ran to the end -- it stopped before its last case" >> "$STATE/results"
+  local mode="$1" script="${2:-checks.php}"
+  wpe "$HERE/$script" "$mode" | sed 's/^/  /'
+  if ! grep -qxF "PASS|$script ($mode): ran to the end" "$STATE/results" 2>/dev/null; then
+    echo "  FAIL|$script ($mode): ran to the end -- it stopped before its last case"
+    echo "FAIL|$script ($mode): ran to the end -- it stopped before its last case" >> "$STATE/results"
   fi
 }
 
@@ -90,10 +91,14 @@ echo "== split internals, admin and storage cases"
 run_php internals
 run_node admin.js
 STORAGE_NOW=$([ "$HPOS_BEFORE" = "yes" ] && echo hpos || echo legacy)
+echo "== Overview page"
+run_php "$STORAGE_NOW" overview.php
+run_node overview.js
 RUN_TAG="bulk.js ($STORAGE_NOW)" run_node bulk.js "$STORAGE_NOW"
 if [ "$HPOS_BEFORE" = "yes" ]; then
   wp --path="$WP_PATH" option update woocommerce_custom_orders_table_enabled no >/dev/null 2>&1
   run_php legacy
+  run_php legacy overview.php
   RUN_TAG="bulk.js (legacy)" run_node bulk.js legacy
   wp --path="$WP_PATH" option update woocommerce_custom_orders_table_enabled yes >/dev/null 2>&1
   BACK=$(wp --path="$WP_PATH" option get woocommerce_custom_orders_table_enabled 2>/dev/null | tail -1)

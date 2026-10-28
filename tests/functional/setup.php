@@ -83,6 +83,18 @@ foreach ( array( 'admin' => 'administrator', 'sub' => 'subscriber' ) as $key => 
 		array( 'name' => LOGGED_IN_COOKIE, 'value' => wp_generate_auth_cookie( $uid, $exp, 'logged_in' ), 'domain' => 'localhost', 'path' => wp_parse_url( home_url( '/' ), PHP_URL_PATH ) ),
 	);
 }
+// A $7 flat rate for the test postcode only, so the real checkouts carry shipping
+// without changing what any other order on this shared site is offered.
+$zone = new WC_Shipping_Zone();
+$zone->set_zone_name( 'ZZ WCBS test postcode' );
+$zone->set_zone_order( -100 );
+$zone->add_location( 'R3C 0A1', 'postcode' );
+$zone->save();
+$instance = $zone->add_shipping_method( 'flat_rate' );
+update_option( 'woocommerce_flat_rate_' . $instance . '_settings', array( 'title' => 'ZZ Flat rate', 'tax_status' => 'none', 'cost' => '7' ) );
+$ids['zone'] = $zone->get_id();
+WC_Cache_Helper::get_transient_version( 'shipping', true );
+
 $ids['home'] = home_url( '/' );
 $ids['admin_url'] = admin_url();
 

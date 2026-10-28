@@ -3,7 +3,7 @@
  * WC Backorder Split main class
  *
  * @package WCBS
- * @version 2.2.0
+ * @version 2.4.0
  */
 
 defined('ABSPATH') || exit;
@@ -19,14 +19,14 @@ class WC_Backorder_Split
      *
      * @var string
      */
-    public $version = '2.3.3';
+    public $version = '2.4.0';
 
     /**
      * Min WC required version.
      *
      * @var string
      */
-    protected $min_wc_version = '3.4';
+    protected $min_wc_version = '4.2';
 
     /**
      * Enviroment alert
@@ -121,6 +121,8 @@ class WC_Backorder_Split
         if ($this->is_request('admin')) {
             include_once $this->plugin_path() . 'includes/class-wc-backorder-split-admin.php';
             include_once $this->plugin_path() . 'includes/class-wc-backorder-split-tracker.php';
+            include_once $this->plugin_path() . 'includes/wpheka-ui/load.php';
+            include_once $this->plugin_path() . 'includes/class-wc-backorder-split-overview.php';
         }
     }
 
@@ -147,7 +149,7 @@ class WC_Backorder_Split
         if (plugin_basename(WCBS_PLUGIN_FILE) === $file) {
             $row_meta = array(
                 'donate'    => '<a href="' . esc_url(apply_filters('wcbs_donate_url', 'https://www.paypal.me/AKSHAYASWAROOP')) . '" title="' . esc_attr(__('Donate', 'wc-backorder-split')) . '">' . __('Donate', 'wc-backorder-split') . '</a>',
-                'support' => '<a href="' . esc_url(apply_filters('wcbs_support_url', 'https://www.wpheka.com/submit-ticket/')) . '" title="' . esc_attr(__('Open a support request at wpheka.com', 'wc-backorder-split')) . '">' . __('Support', 'wc-backorder-split') . '</a>',
+                'support' => '<a href="' . esc_url(apply_filters('wcbs_support_url', 'https://wordpress.org/support/plugin/wc-backorder-split/')) . '" title="' . esc_attr(__('Ask in the support forum', 'wc-backorder-split')) . '">' . __('Support', 'wc-backorder-split') . '</a>',
             );
 
             return array_merge($links, $row_meta);
@@ -221,6 +223,16 @@ class WC_Backorder_Split
     }
 
     /**
+     * Drop the Overview page's cached counts after a split.
+     *
+     * @since 2.4.0
+     */
+    public function flush_overview_stats()
+    {
+        delete_transient('wcbs_overview_stats');
+    }
+
+    /**
      * Initialize plugin functionality after environment check.
      *
      * @since 1.4.0
@@ -235,10 +247,14 @@ class WC_Backorder_Split
 
         WC_Backorder_Split_Register::init();
 
+        // The Overview page caches its counts; a new split makes them stale.
+        add_action('wcbs_backorder_created', array( $this, 'flush_overview_stats' ));
+
         if ($this->is_request('admin')) {
             // Admin request.
             WC_Backorder_Split_Admin::init();
             WC_Backorder_Split_Tracker::init();
+            WC_Backorder_Split_Overview::init();
         }
 
         // REST too: the block checkout places orders through the Store API, a

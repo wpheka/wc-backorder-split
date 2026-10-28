@@ -2,7 +2,7 @@
 /**
  * WC Backorder Split Admin
  *
- * @version 2.1.0
+ * @version 2.4.0
  * @package WCBS
  */
 
@@ -203,7 +203,7 @@ class WC_Backorder_Split_Admin
         // existing review list, so it was flagged without pre-filling anything.
         // Plugin Check staying quiet is not the same as wordpress.org's review
         // team agreeing; that risk is accepted separately.
-        $reviews = 'https://wordpress.org/support/plugin/wc-backorder-split/reviews?rate=5#new-post';
+        $reviews = 'https://wordpress.org/support/plugin/wc-backorder-split/reviews/#new-post';
         $dismiss = wp_nonce_url(
             add_query_arg('wcbs_dismiss_review', '1', admin_url('index.php')),
             'wcbs_dismiss_review'

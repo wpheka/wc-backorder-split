@@ -43,6 +43,13 @@ foreach ( array_reverse( $products ) as $pid ) {
 		$p->delete( true );
 	}
 }
+if ( ! empty( $ids['zone'] ) ) {
+	( new WC_Shipping_Zone( (int) $ids['zone'] ) )->delete();
+	WC_Cache_Helper::get_transient_version( 'shipping', true );
+}
+if ( ! empty( $ids['coupon_pct'] ) ) {
+	wp_delete_post( $ids['coupon_pct'], true );
+}
 if ( ! empty( $ids['coupon'] ) ) {
 	wp_delete_post( $ids['coupon'], true );
 }
