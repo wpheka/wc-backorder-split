@@ -64,6 +64,9 @@ foreach ( array( 'admin', 'sub' ) as $key ) {
 if ( ! empty( $ids['mu'] ) && file_exists( $ids['mu'] ) ) {
 	unlink( $ids['mu'] );
 }
+if ( ! empty( $ids['notices_mu'] ) && file_exists( $ids['notices_mu'] ) ) {
+	unlink( $ids['notices_mu'] );
+}
 if ( '__unset__' === ( $ids['split_count_before'] ?? '__unset__' ) ) {
 	delete_option( 'wcbs_split_count' );
 } else {

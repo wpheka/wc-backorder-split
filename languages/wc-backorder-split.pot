@@ -2,14 +2,14 @@
 # This file is distributed under the GPLv3 or later.
 msgid ""
 msgstr ""
-"Project-Id-Version: WC Backorder Split 2.4.0\n"
+"Project-Id-Version: WC Backorder Split 2.4.1\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/wc-backorder-split\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-28T08:43:15+00:00\n"
+"POT-Creation-Date: 2026-10-29T15:23:34+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: wc-backorder-split\n"
@@ -17,9 +17,9 @@ msgstr ""
 #. Plugin Name of the plugin
 #: wc-backorder-split.php
 #: includes/class-wc-backorder-split-admin.php:218
-#: includes/class-wc-backorder-split-overview.php:86
-#: includes/class-wc-backorder-split-overview.php:161
-#: includes/class-wc-backorder-split-overview.php:190
+#: includes/class-wc-backorder-split-overview.php:81
+#: includes/class-wc-backorder-split-overview.php:160
+#: includes/class-wc-backorder-split-overview.php:189
 #: includes/wpheka-ui/class-catalogue.php:56
 msgid "WC Backorder Split"
 msgstr ""
@@ -78,340 +78,343 @@ msgstr ""
 msgid "Backorder split"
 msgstr ""
 
-#: includes/class-wc-backorder-split-frontend.php:418
+#. translators: %s: order number
+#: includes/class-wc-backorder-split-frontend.php:419
 #, php-format
 msgid "Backorder items split into order #%s"
 msgstr ""
 
-#: includes/class-wc-backorder-split-frontend.php:424
+#. translators: %s: order number
+#: includes/class-wc-backorder-split-frontend.php:426
 #, php-format
 msgid "This order contains backordered items from order #%s"
 msgstr ""
 
 #. translators: %s: original order number
-#: includes/class-wc-backorder-split-frontend.php:432
+#: includes/class-wc-backorder-split-frontend.php:434
 #, php-format
 msgid "Shipping was charged on order #%s."
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:86
-#: includes/class-wc-backorder-split-overview.php:165
+#: includes/class-wc-backorder-split-overview.php:81
+#: includes/class-wc-backorder-split-overview.php:164
 msgid "Backorder Split"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:116
+#: includes/class-wc-backorder-split-overview.php:115
 msgid "View WC Backorder Split overview"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:116
-#: includes/class-wc-backorder-split-overview.php:173
+#: includes/class-wc-backorder-split-overview.php:115
+#: includes/class-wc-backorder-split-overview.php:172
 msgid "Overview"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:163
-#: includes/wpheka-ui/class-page.php:228
+#: includes/class-wc-backorder-split-overview.php:162
+#: includes/wpheka-ui/class-page.php:314
 msgid "Free"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:164
+#: includes/class-wc-backorder-split-overview.php:163
 msgid "Ship what is in stock now and send backorders in their own order."
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:167
+#: includes/class-wc-backorder-split-overview.php:166
 msgid "Docs"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:168
+#: includes/class-wc-backorder-split-overview.php:167
 #: includes/class-wc-backorder-split.php:152
 msgid "Support"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:169
-#: includes/class-wc-backorder-split-overview.php:456
+#: includes/class-wc-backorder-split-overview.php:168
+#: includes/class-wc-backorder-split-overview.php:501
 msgid "What's new"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:171
+#: includes/class-wc-backorder-split-overview.php:170
 msgid "Rate on WordPress.org"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:174
-#: includes/wpheka-ui/class-page.php:81
+#: includes/class-wc-backorder-split-overview.php:173
+#: includes/wpheka-ui/class-page.php:167
 msgid "Help"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:296
+#: includes/class-wc-backorder-split-overview.php:341
 msgid "Orders split"
 msgstr ""
 
 #. translators: %s: number of splits in the last 7 days.
-#: includes/class-wc-backorder-split-overview.php:300
+#: includes/class-wc-backorder-split-overview.php:345
 #, php-format
 msgid "+%s in the last 7 days"
 msgstr ""
 
 #. translators: %s: number of splits in the last 7 days.
-#: includes/class-wc-backorder-split-overview.php:300
+#: includes/class-wc-backorder-split-overview.php:345
 msgid "Since the plugin was installed"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:304
+#: includes/class-wc-backorder-split-overview.php:349
 msgid "Backordered now"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:308
+#: includes/class-wc-backorder-split-overview.php:353
 msgid "Orders with the Backordered status"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:311
+#: includes/class-wc-backorder-split-overview.php:356
 msgid "Backorders completed"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:314
+#: includes/class-wc-backorder-split-overview.php:359
 msgid "Shipped later, on their own"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:317
-#: includes/class-wc-backorder-split-overview.php:386
+#: includes/class-wc-backorder-split-overview.php:362
+#: includes/class-wc-backorder-split-overview.php:431
 msgid "Items moved"
 msgstr ""
 
 #. translators: %s: number of backorder orders.
-#: includes/class-wc-backorder-split-overview.php:322
+#: includes/class-wc-backorder-split-overview.php:367
 #, php-format
 msgid "Across %s backorder order"
 msgid_plural "Across %s backorder orders"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/class-wc-backorder-split-overview.php:335
+#: includes/class-wc-backorder-split-overview.php:380
 msgid "No setup needed. Backorder Split works automatically after checkout. This page shows what it has done."
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:342
+#: includes/class-wc-backorder-split-overview.php:387
 msgid "Review and help"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:343
+#: includes/class-wc-backorder-split-overview.php:388
 msgid "Saved you some shipping?"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:343
+#: includes/class-wc-backorder-split-overview.php:388
 msgid "A quick review helps other store owners find it and keeps it improving."
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:346
+#: includes/class-wc-backorder-split-overview.php:391
 msgid "Read the documentation"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:347
+#: includes/class-wc-backorder-split-overview.php:392
 #: includes/class-wc-backorder-split.php:152
 msgid "Ask in the support forum"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:358
+#: includes/class-wc-backorder-split-overview.php:403
 msgid "A customer orders"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:358
+#: includes/class-wc-backorder-split-overview.php:403
 msgid "Some items are in stock and some are on backorder."
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:359
+#: includes/class-wc-backorder-split-overview.php:404
 msgid "The order splits after checkout"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:359
+#: includes/class-wc-backorder-split-overview.php:404
 msgid "When the order confirmation page loads, the backordered quantities move to a new linked order with the Backordered status."
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:360
+#: includes/class-wc-backorder-split-overview.php:405
 msgid "You ship what you have"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:360
+#: includes/class-wc-backorder-split-overview.php:405
 msgid "Both orders link to each other and get a note. The new order keeps the shipping method at no extra cost, so the customer pays shipping once."
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:363
+#: includes/class-wc-backorder-split-overview.php:408
 msgid "How it works"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:378
+#: includes/class-wc-backorder-split-overview.php:423
 msgid "Recent splits"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:381
+#: includes/class-wc-backorder-split-overview.php:426
 msgid "No orders split yet."
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:381
+#: includes/class-wc-backorder-split-overview.php:426
 msgid "When a customer buys more than you have in stock, the extra items move to a new Backordered order."
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:386
+#: includes/class-wc-backorder-split-overview.php:431
 msgid "Original order"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:386
+#: includes/class-wc-backorder-split-overview.php:431
 msgid "Backorder"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:386
-#: includes/class-wc-backorder-split-overview.php:416
+#: includes/class-wc-backorder-split-overview.php:431
+#: includes/class-wc-backorder-split-overview.php:461
 msgid "Status"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:386
+#: includes/class-wc-backorder-split-overview.php:431
 msgid "When"
 msgstr ""
 
 #. translators: %s: time since, for example "3 hours".
-#: includes/class-wc-backorder-split-overview.php:402
+#: includes/class-wc-backorder-split-overview.php:447
 #, php-format
 msgid "%s ago"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:406
+#: includes/class-wc-backorder-split-overview.php:451
 msgid "View all Backordered orders"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:414
+#: includes/class-wc-backorder-split-overview.php:459
 msgid "Changed by custom code"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:420
+#: includes/class-wc-backorder-split-overview.php:465
 msgid "Backorder status"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:421
+#: includes/class-wc-backorder-split-overview.php:466
 msgid "Backordered"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:422
+#: includes/class-wc-backorder-split-overview.php:467
 msgid "New backorder orders get this status."
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:423
-#: includes/class-wc-backorder-split-overview.php:429
-#: includes/class-wc-backorder-split-overview.php:435
+#: includes/class-wc-backorder-split-overview.php:468
+#: includes/class-wc-backorder-split-overview.php:474
+#: includes/class-wc-backorder-split-overview.php:480
 msgid "Default"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:426
+#: includes/class-wc-backorder-split-overview.php:471
 msgid "Emails during a split"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:427
+#: includes/class-wc-backorder-split-overview.php:472
 msgid "Held"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:428
+#: includes/class-wc-backorder-split-overview.php:473
 msgid "WooCommerce emails are held while the new order is created, so the customer does not get a second order email."
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:432
+#: includes/class-wc-backorder-split-overview.php:477
 msgid "Shipping on the backorder"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:433
+#: includes/class-wc-backorder-split-overview.php:478
 msgid "Same method, no extra cost"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:434
+#: includes/class-wc-backorder-split-overview.php:479
 msgid "Fees and coupons stay on the original order."
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:438
+#: includes/class-wc-backorder-split-overview.php:483
 msgid "Order storage"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:439
+#: includes/class-wc-backorder-split-overview.php:484
 msgid "High-Performance Order Storage"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:439
+#: includes/class-wc-backorder-split-overview.php:484
 msgid "WordPress posts storage"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:440
+#: includes/class-wc-backorder-split-overview.php:485
 msgid "Supported"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:454
+#: includes/class-wc-backorder-split-overview.php:499
 msgid "Documentation"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:454
+#: includes/class-wc-backorder-split-overview.php:499
 msgid "How a split works, with answers to common questions."
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:455
+#: includes/class-wc-backorder-split-overview.php:500
 msgid "Support forum"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:455
+#: includes/class-wc-backorder-split-overview.php:500
 msgid "Ask a question. The developers who built the plugin answer."
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:456
+#: includes/class-wc-backorder-split-overview.php:501
 msgid "Every change in each version, in plain words."
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:457
+#: includes/class-wc-backorder-split-overview.php:502
 msgid "Developer hooks"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:457
+#: includes/class-wc-backorder-split-overview.php:502
 msgid "Change when orders split, what moves and which status the new order gets."
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:461
+#: includes/class-wc-backorder-split-overview.php:506
 #: includes/wpheka-ui/class-catalogue.php:121
-#: includes/wpheka-ui/class-page.php:83
-#: includes/wpheka-ui/class-page.php:103
-#: includes/wpheka-ui/class-page.php:179
-#: includes/wpheka-ui/class-page.php:192
+#: includes/wpheka-ui/class-page.php:129
+#: includes/wpheka-ui/class-page.php:169
+#: includes/wpheka-ui/class-page.php:189
+#: includes/wpheka-ui/class-page.php:265
+#: includes/wpheka-ui/class-page.php:278
 msgid "(opens in a new tab)"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:466
+#: includes/class-wc-backorder-split-overview.php:511
 msgid "The split runs when the order confirmation page loads, on the classic and the block checkout. Orders added in the admin are not split."
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:467
+#: includes/class-wc-backorder-split-overview.php:512
 msgid "An order is split only once, even if the confirmation page is reloaded."
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:468
+#: includes/class-wc-backorder-split-overview.php:513
 msgid "When nothing in the order is in stock, it is not split: the order itself gets the Backordered status."
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:469
+#: includes/class-wc-backorder-split-overview.php:514
 msgid "Stock is read when the customer adds to cart and at checkout. Variations that share their parent's stock share it here too."
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:470
+#: includes/class-wc-backorder-split-overview.php:515
 msgid "The backorder order keeps the shipping method at no extra cost. Shipping, fees and coupons are paid once, on the original order."
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:471
+#: includes/class-wc-backorder-split-overview.php:516
 msgid "Both orders get an order note and a \"Linked orders\" box on the order screen."
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:472
+#: includes/class-wc-backorder-split-overview.php:517
 msgid "\"Change status to backordered\" is in the orders list bulk actions."
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:473
+#: includes/class-wc-backorder-split-overview.php:518
 msgid "Errors are logged in WooCommerce > Status > Logs, source wc-backorder-split."
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:477
+#: includes/class-wc-backorder-split-overview.php:522
 msgid "Good to know"
 msgstr ""
 
-#: includes/class-wc-backorder-split-overview.php:482
+#: includes/class-wc-backorder-split-overview.php:527
 msgid "Developer hooks:"
 msgstr ""
 
@@ -610,11 +613,11 @@ msgstr ""
 msgid "View"
 msgstr ""
 
-#: includes/wpheka-ui/class-fields.php:451
+#: includes/wpheka-ui/class-fields.php:453
 msgid "No settings match"
 msgstr ""
 
-#: includes/wpheka-ui/class-fields.php:451
+#: includes/wpheka-ui/class-fields.php:453
 msgid "Try another word, or clear the search to see every setting."
 msgstr ""
 
@@ -654,84 +657,88 @@ msgstr ""
 msgid "%s days"
 msgstr ""
 
-#: includes/wpheka-ui/class-page.php:130
-msgid "At a glance"
-msgstr ""
-
-#: includes/wpheka-ui/class-page.php:160
-msgid "Settings sections"
-msgstr ""
-
-#: includes/wpheka-ui/class-page.php:162
-msgid "Search settings"
-msgstr ""
-
-#: includes/wpheka-ui/class-page.php:179
-msgid "Leave a review"
-msgstr ""
-
-#: includes/wpheka-ui/class-page.php:180
-msgid "Takes about a minute on WordPress.org"
-msgstr ""
-
-#: includes/wpheka-ui/class-page.php:190
-msgid "Need a hand?"
+#: includes/wpheka-ui/class-page.php:132
+msgid "Dismiss this notice"
 msgstr ""
 
 #: includes/wpheka-ui/class-page.php:216
+msgid "At a glance"
+msgstr ""
+
+#: includes/wpheka-ui/class-page.php:246
+msgid "Settings sections"
+msgstr ""
+
+#: includes/wpheka-ui/class-page.php:248
+msgid "Search settings"
+msgstr ""
+
+#: includes/wpheka-ui/class-page.php:265
+msgid "Leave a review"
+msgstr ""
+
+#: includes/wpheka-ui/class-page.php:266
+msgid "Takes about a minute on WordPress.org"
+msgstr ""
+
+#: includes/wpheka-ui/class-page.php:276
+msgid "Need a hand?"
+msgstr ""
+
+#: includes/wpheka-ui/class-page.php:302
 msgid "More from WPHEKA"
 msgstr ""
 
-#: includes/wpheka-ui/class-page.php:217
+#: includes/wpheka-ui/class-page.php:303
 msgid "WooCommerce plugins trusted since 2017, with 64,000+ downloads."
 msgstr ""
 
-#: includes/wpheka-ui/class-page.php:218
+#: includes/wpheka-ui/class-page.php:304
 msgid "Previous plugins"
 msgstr ""
 
-#: includes/wpheka-ui/class-page.php:219
+#: includes/wpheka-ui/class-page.php:305
 msgid "Next plugins"
 msgstr ""
 
 #. translators: %s: WPHEKA link.
-#: includes/wpheka-ui/class-page.php:241
+#: includes/wpheka-ui/class-page.php:327
 #, php-format
 msgid "Made with care by %s · WooCommerce plugins since 2017"
 msgstr ""
 
 #. translators: %s: plugin name.
-#: includes/wpheka-ui/class-page.php:245
+#: includes/wpheka-ui/class-page.php:331
 #, php-format
 msgid "Enjoying %s?"
 msgstr ""
 
 #. translators: %s: plugin name.
-#: includes/wpheka-ui/class-page.php:245
+#: includes/wpheka-ui/class-page.php:331
 msgid "Rate it"
 msgstr ""
 
 #. translators: %s: plugin name.
-#: includes/wpheka-ui/class-page.php:245
+#: includes/wpheka-ui/class-page.php:331
 msgid "five stars on WordPress.org (opens in a new tab)"
 msgstr ""
 
-#: includes/wpheka-ui/class-page.php:250
+#: includes/wpheka-ui/class-page.php:336
 msgid "Unsaved changes"
 msgstr ""
 
-#: includes/wpheka-ui/class-page.php:251
+#: includes/wpheka-ui/class-page.php:337
 msgid "Discard"
 msgstr ""
 
-#: includes/wpheka-ui/class-page.php:252
+#: includes/wpheka-ui/class-page.php:338
 msgid "Save changes"
 msgstr ""
 
-#: includes/wpheka-ui/class-page.php:259
+#: includes/wpheka-ui/class-page.php:345
 msgid "Dismiss"
 msgstr ""
 
-#: includes/wpheka-ui/class-page.php:263
+#: includes/wpheka-ui/class-page.php:349
 msgid "Settings saved"
 msgstr ""

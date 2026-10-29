@@ -81,6 +81,10 @@ class WC_Backorder_Split_Overview {
 		$hook = Menu::add_page( __( 'WC Backorder Split', 'wc-backorder-split' ), __( 'Backorder Split', 'wc-backorder-split' ), self::CAPABILITY, self::PAGE, array( __CLASS__, 'render' ), Icons::menu_icon() );
 
 		self::$hook = is_string( $hook ) ? $hook : '';
+		if ( '' !== self::$hook ) {
+			// Notices from WordPress and other plugins would print above the header and then jump into place.
+			add_action( 'load-' . self::$hook, array( Page::class, 'quiet_notices' ) );
+		}
 	}
 
 	/**

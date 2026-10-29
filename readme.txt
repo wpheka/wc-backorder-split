@@ -6,7 +6,7 @@ Requires PHP: 8.1
 Tested up to: 7.1.3
 WC requires at least: 4.2
 WC tested up to: 11.2.1
-Stable tag: 2.4.0
+Stable tag: 2.4.1
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 Donate link: https://www.paypal.me/AKSHAYASWAROOP
@@ -85,6 +85,10 @@ Under WPHEKA > Backorder Split: orders split, orders backordered now, backorders
 1. WooCommerce orders admin.
 
 == Changelog ==
+
+= 2.4.1 - 2026-10-29 =
+* Tweak - Notices from WordPress and other plugins no longer show on the WPHEKA > Backorder Split page, where they printed above the header and then jumped into place. They still show on every other screen.
+* Fix - On sites in a right-to-left language the labels in the Status list sat against the edge of the card. They now have the same margin as the rest of the row.
 
 = 2.4.0 - 2026-10-28 =
 * Feature - New WPHEKA > Backorder Split page: orders split, backordered now, backorders completed, items moved, the latest splits and how it works.

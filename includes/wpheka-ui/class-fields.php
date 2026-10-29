@@ -109,6 +109,8 @@ class Fields {
 
 	/**
 	 * A switch. Posts `off` when unticked, so a cleared box is saved as off.
+	 * With `off` set to null nothing posts when unticked, as WooCommerce's settings API
+	 * expects: it saves any posted checkbox value, "no" included, as "yes".
 	 *
 	 * @param array $a { name, checked, label, help, controls, disabled, on, off }.
 	 */
@@ -129,7 +131,7 @@ class Fields {
 		$id = self::id();
 		echo '<div class="w-row">' . self::head( $a['label'], $a['help'], $id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped in head().
 		echo '<span class="w-switch">';
-		if ( $a['name'] && ! $a['disabled'] ) {
+		if ( $a['name'] && ! $a['disabled'] && null !== $a['off'] ) {
 			echo '<input type="hidden" name="' . esc_attr( $a['name'] ) . '" value="' . esc_attr( $a['off'] ) . '">';
 		}
 		echo '<input type="checkbox" role="switch" id="' . esc_attr( $id ) . '"' . ( $a['name'] ? ' name="' . esc_attr( $a['name'] ) . '"' : '' ) . ' value="' . esc_attr( $a['on'] ) . '"' . checked( $a['checked'], true, false ) . disabled( $a['disabled'], true, false );
@@ -431,7 +433,7 @@ class Fields {
 	 * @param string $placeholder Placeholder and accessible name.
 	 */
 	public static function kv_find( $target, $placeholder ) {
-		echo '<div class="w-find w-kv-find">' . Icons::get( 'search', '2' ) . '<input type="search" placeholder="' . esc_attr( $placeholder ) . '" aria-label="' . esc_attr( $placeholder ) . '" aria-controls="' . esc_attr( $target ) . '" data-w-kvfind="' . esc_attr( $target ) . '"></div>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- icon is static SVG.
+		echo '<div class="w-find w-kv-find">' . Icons::get( 'search', '2' ) . '<input type="search" placeholder="' . esc_attr( $placeholder ) . '" aria-label="' . esc_attr( $placeholder ) . '" aria-controls="' . esc_attr( $target ) . '" data-w-kvfind="' . esc_attr( $target ) . '" data-w-nodirty></div>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- icon is static SVG.
 	}
 
 	/**

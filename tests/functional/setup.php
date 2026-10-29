@@ -110,5 +110,18 @@ add_filter( "pre_wp_mail", function ( $null, $atts ) {
 ' );
 $ids['mu'] = $mu;
 
+// "Another plugin" with notices hooked three ways, and one printed outside the notice hooks.
+$notices_mu = WP_CONTENT_DIR . '/mu-plugins/zz-wcbs-functional-notices.php';
+file_put_contents( $notices_mu, '<?php
+// Written by wc-backorder-split/tests/functional; deleted when the suite ends.
+function zz_wcbs_foreign_notice() { echo \'<div class="notice notice-warning zz-wcbs-foreign"><p>ZZ WCBS function notice</p></div>\'; }
+class ZZ_Wcbs_Foreign { public static function notice() { echo \'<div class="notice notice-info zz-wcbs-foreign"><p>ZZ WCBS method notice</p></div>\'; } }
+add_action( \'admin_notices\', \'zz_wcbs_foreign_notice\' );
+add_action( \'admin_notices\', array( \'ZZ_Wcbs_Foreign\', \'notice\' ) );
+add_action( \'all_admin_notices\', function () { echo \'<div class="notice notice-error zz-wcbs-foreign"><p>ZZ WCBS closure notice</p></div>\'; } );
+add_action( \'in_admin_header\', function () { echo \'<div class="notice notice-warning zz-wcbs-stray"><p>ZZ WCBS stray notice</p></div>\'; }, 1 );
+' );
+$ids['notices_mu'] = $notices_mu;
+
 wcbs_t_save_ids( $ids );
 echo 'created products, pages, users and the mail capture', "\n";

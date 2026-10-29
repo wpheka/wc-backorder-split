@@ -1,7 +1,8 @@
 // The WPHEKA > Backorder Split page in a real browser: the menu entry under
 // WPHEKA, the four cards and the Recent splits table (the checkouts earlier in
 // the run made splits), the Help tab, the Overview link on the Plugins screen,
-// a subscriber kept out, and no JavaScript errors on the page.
+// a subscriber kept out, other plugins' notices kept off the page, and no
+// JavaScript errors on the page.
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
@@ -81,6 +82,17 @@ async function check(name, fn) {
     return [String(href).includes('page=wc-backorder-split'), `href ${href}`];
   });
 
+  await check('overview: other plugins\' notices stay off the page, and show on the Dashboard', async () => {
+    await page.goto(ADMIN + 'index.php', { waitUntil: 'load' });
+    const elsewhere = await page.locator('.zz-wcbs-foreign').count();
+    let here = 0, stray = false;
+    for (const tab of ['', '&tab=help']) {
+      await page.goto(PAGE + tab, { waitUntil: 'load' });
+      here += await page.locator('.zz-wcbs-foreign').count();
+      stray = stray || await page.locator('.zz-wcbs-stray').isVisible();
+    }
+    return [elsewhere === 3 && here === 0 && !stray, `dashboard ${elsewhere} (want 3), plugin page ${here}, stray visible ${stray}`];
+  });
   await check('overview: no JavaScript errors on the page', async () => [errors.length === 0, errors.join(' | ')]);
   await ctx.close();
 
