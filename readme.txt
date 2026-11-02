@@ -83,8 +83,12 @@ Under WPHEKA > Backorder Split: orders split, orders backordered now, backorders
 == Screenshots ==
 
 1. WooCommerce orders admin.
+2. WPHEKA > Backorder Split: how many orders were split, how it works and the latest splits.
 
 == Changelog ==
+
+= Unreleased =
+* Tweak - The deactivation feedback dialog uses `.trigger( 'focus' )` instead of jQuery's deprecated `.focus()` shorthand.
 
 = 2.4.1 - 2026-10-29 =
 * Tweak - Notices from WordPress and other plugins no longer show on the WPHEKA > Backorder Split page, where they printed above the header and then jumped into place. They still show on every other screen.

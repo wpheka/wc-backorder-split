@@ -51,13 +51,13 @@ async function place(page, mode, cart) {
   }
   const raise = cart.find(c => c.startsWith('cart='));
   if (raise) {
-    await page.goto(`${BASE}/?page_id=${ids.cart_page}`);
+    await page.goto(`${BASE}/?page_id=${ids.classiccart}`);
     await page.locator('input.qty').first().fill(raise.split('=')[1]);
     await page.locator('button[name="update_cart"]').click();
     await page.waitForLoadState('networkidle');
   }
   if (mode === 'classic') {
-    await page.goto(`${BASE}/?page_id=${ids.checkout_page}`);
+    await page.goto(`${BASE}/?page_id=${ids.classicpage}`);
     const f = { billing_first_name: 'Zz', billing_last_name: 'Test', billing_address_1: '1 Test St', billing_city: 'Winnipeg', billing_postcode: 'R3C 0A1', billing_phone: '2045550100', billing_email: 'zz-wcbs-guest@example.invalid' };
     for (const [k, v] of Object.entries(f)) await page.fill('#' + k, v);
     await page.waitForLoadState('networkidle');

@@ -66,6 +66,24 @@ $ids['blockpage'] = wp_insert_post( array(
 	'post_type'    => 'page',
 	'post_content' => '<!-- wp:woocommerce/checkout --><div class="wp-block-woocommerce-checkout wc-block-checkout is-loading"></div><!-- /wp:woocommerce/checkout -->',
 ) );
+// A classic (shortcode) checkout of its own, as the block one above: the site's checkout
+// page may be the Checkout block, which has none of the classic fields the cases fill.
+$ids['classicpage']   = wp_insert_post( array(
+	'post_title'   => 'ZZ WCBS Classic Checkout',
+	'post_name'    => 'zz-wcbs-classic-checkout',
+	'post_status'  => 'publish',
+	'post_type'    => 'page',
+	'post_content' => '<!-- wp:shortcode -->[woocommerce_checkout]<!-- /wp:shortcode -->',
+) );
+// And a classic cart, for the case that raises a quantity in the cart (the Cart block has no
+// input.qty or "Update cart" button).
+$ids['classiccart']   = wp_insert_post( array(
+	'post_title'   => 'ZZ WCBS Classic Cart',
+	'post_name'    => 'zz-wcbs-classic-cart',
+	'post_status'  => 'publish',
+	'post_type'    => 'page',
+	'post_content' => '<!-- wp:shortcode -->[woocommerce_cart]<!-- /wp:shortcode -->',
+) );
 $ids['cart_page']     = wc_get_page_id( 'cart' );
 $ids['checkout_page'] = wc_get_page_id( 'checkout' );
 

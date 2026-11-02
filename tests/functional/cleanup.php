@@ -56,6 +56,12 @@ if ( ! empty( $ids['coupon'] ) ) {
 if ( ! empty( $ids['blockpage'] ) ) {
 	wp_delete_post( $ids['blockpage'], true );
 }
+if ( ! empty( $ids['classicpage'] ) ) {
+	wp_delete_post( $ids['classicpage'], true );
+}
+if ( ! empty( $ids['classiccart'] ) ) {
+	wp_delete_post( $ids['classiccart'], true );
+}
 foreach ( array( 'admin', 'sub' ) as $key ) {
 	if ( ! empty( $ids[ $key ] ) ) {
 		wp_delete_user( $ids[ $key ] );
