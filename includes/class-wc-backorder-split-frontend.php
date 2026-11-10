@@ -185,6 +185,13 @@ class WC_Backorder_Split_Frontend {
 				return;
 			}
 
+			// WooCommerce shows this page for a failed payment too. Leave the
+			// order whole, so a retry pays the full amount and the split runs
+			// when the paid order's confirmation page loads.
+			if ( $order->has_status( array( 'failed', 'cancelled' ) ) ) {
+				return;
+			}
+
 			if ( ! apply_filters( 'wcbs_should_split_order', true, $order_id, $order ) ) {
 				return;
 			}

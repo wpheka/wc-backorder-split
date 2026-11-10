@@ -19,7 +19,7 @@ class WC_Backorder_Split
      *
      * @var string
      */
-    public $version = '2.4.1';
+    public $version = '2.4.2';
 
     /**
      * Min WC required version.

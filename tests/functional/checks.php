@@ -169,6 +169,38 @@ try {
 		}
 	};
 
+	// A failed payment also reaches the confirmation page. The order stays whole and
+	// failed, then splits once a retried payment succeeds.
+	foreach ( array( 'mixed' => 1, 'all backordered' => 0 ) as $case => $stock_at_add ) {
+		wc_update_product_stock( wc_get_product( $ids['s1'] ), $stock_at_add, 'set' );
+		$f = wc_create_order();
+		$f->set_billing_email( 'zz-wcbs-guest@example.invalid' );
+		$f->set_payment_method( 'cod' );
+		$f->add_product( wc_get_product( $ids['s1'] ), 3 );
+		foreach ( $f->get_items() as $line ) {
+			$line->add_meta_data( '_stock_quantity_at_add', $stock_at_add, true );
+		}
+		$f->calculate_totals();
+		$f->set_status( 'failed' );
+		$f->save();
+		$fid                    = $f->get_id();
+		$GLOBALS['wcbs_t_made'][] = $fid;
+		WC_Backorder_Split_Frontend::split_backorder_products( $fid );
+		$f = wc_get_order( $fid );
+		wcbs_t_result( "$label: failed order ($case) is left whole and failed", 'failed' === $f->get_status() && ! $f->get_meta( '_wcbs_backorder_id' ) && ! $f->get_meta( '_wcbs_processed' ) && array( 'ZZ WCBS Stock1' => 3 ) === wcbs_t_items( $f ), $f->get_status() . ' ' . wp_json_encode( wcbs_t_items( $f ) ) );
+
+		$f->set_status( 'processing' );
+		$f->save();
+		WC_Backorder_Split_Frontend::split_backorder_products( $fid );
+		$f    = wc_get_order( $fid );
+		$fcid = (int) $f->get_meta( '_wcbs_backorder_id' );
+		if ( $fcid ) {
+			$GLOBALS['wcbs_t_made'][] = $fcid;
+		}
+		$ok = $stock_at_add ? ( $fcid && array( 'ZZ WCBS Stock1' => 1 ) === wcbs_t_items( $f ) ) : 'backordered' === $f->get_status();
+		wcbs_t_result( "$label: failed order ($case) splits after a successful retry", $ok, $f->get_status() . ' child ' . $fcid . ' ' . wp_json_encode( wcbs_t_items( $f ) ) );
+	}
+
 	// A percent coupon: each order keeps its own share of the discount, counted once.
 	if ( empty( $ids['coupon_pct'] ) ) {
 		$c = new WC_Coupon();
