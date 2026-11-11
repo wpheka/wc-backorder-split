@@ -201,6 +201,188 @@ try {
 		wcbs_t_result( "$label: failed order ($case) splits after a successful retry", $ok, $f->get_status() . ' child ' . $fcid . ' ' . wp_json_encode( wcbs_t_items( $f ) ) );
 	}
 
+	// Orders still pending at the confirmation page (redirect and asynchronous
+	// gateways) wait for the payment, then split at the end of the request that
+	// confirms it, with no emails from the split itself.
+	$new_order = function ( $stock_at_add, $status ) use ( $ids ) {
+		wc_update_product_stock( wc_get_product( $ids['s1'] ), $stock_at_add, 'set' );
+		$o = wc_create_order();
+		$o->set_billing_email( 'zz-wcbs-guest@example.invalid' );
+		$o->set_payment_method( 'cod' );
+		$o->add_product( wc_get_product( $ids['s1'] ), 3 );
+		foreach ( $o->get_items() as $line ) {
+			$line->add_meta_data( '_stock_quantity_at_add', $stock_at_add, true );
+		}
+		$o->calculate_totals();
+		$o->set_status( $status );
+		$o->save();
+		$GLOBALS['wcbs_t_made'][] = $o->get_id();
+		return $o->get_id();
+	};
+	$child_of = function ( $id ) {
+		$cid = (int) wc_get_order( $id )->get_meta( '_wcbs_backorder_id' );
+		if ( $cid ) {
+			$GLOBALS['wcbs_t_made'][] = $cid;
+		}
+		return $cid;
+	};
+	$mails = 0;
+	$count_mail = function ( $pre ) use ( &$mails ) {
+		++$mails;
+		return true; // Short-circuits wp_mail: nothing is sent.
+	};
+	foreach ( array( 'mixed' => 1, 'all backordered' => 0 ) as $case => $stock_at_add ) {
+		$pid = $new_order( $stock_at_add, 'pending' );
+		WC_Backorder_Split_Frontend::split_backorder_products( $pid );
+		$p = wc_get_order( $pid );
+		wcbs_t_result( "$label: pending order ($case) is left whole at the confirmation page", 'pending' === $p->get_status() && ! $p->get_meta( '_wcbs_backorder_id' ) && ! $p->get_meta( '_wcbs_processed' ) && 'yes' === $p->get_meta( '_wcbs_awaiting_payment' ) && array( 'ZZ WCBS Stock1' => 3 ) === wcbs_t_items( $p ), $p->get_status() . ' ' . wp_json_encode( wcbs_t_items( $p ) ) );
+
+		$p->update_status( 'processing' );
+		$p = wc_get_order( $pid );
+		wcbs_t_result( "$label: pending order ($case) is not split inside the request that confirms payment", array( 'ZZ WCBS Stock1' => 3 ) === wcbs_t_items( $p ) && ! $p->get_meta( '_wcbs_backorder_id' ), wp_json_encode( wcbs_t_items( $p ) ) );
+
+		$mails = 0;
+		add_filter( 'pre_wp_mail', $count_mail );
+		WC_Backorder_Split_Frontend::run_deferred_splits(); // What the shutdown hook runs.
+		remove_filter( 'pre_wp_mail', $count_mail );
+		$p   = wc_get_order( $pid );
+		$pcid = $child_of( $pid );
+		$ok  = $stock_at_add ? ( $pcid && array( 'ZZ WCBS Stock1' => 1 ) === wcbs_t_items( $p ) && array( 'ZZ WCBS Stock1' => 2 ) === wcbs_t_items( wc_get_order( $pcid ) ) ) : 'backordered' === $p->get_status();
+		wcbs_t_result( "$label: pending order ($case) splits once payment is confirmed", $ok && '' === $p->get_meta( '_wcbs_awaiting_payment' ), $p->get_status() . ' child ' . $pcid . ' ' . wp_json_encode( wcbs_t_items( $p ) ) );
+		wcbs_t_result( "$label: the deferred split ($case) sends no email", 0 === $mails, "$mails sent" );
+	}
+
+	// A pending order that never reached the confirmation page (an admin order
+	// marked paid, say) is not split by a status change: unchanged behaviour.
+	$uid = $new_order( 1, 'pending' );
+	wc_get_order( $uid )->update_status( 'processing' );
+	WC_Backorder_Split_Frontend::run_deferred_splits();
+	wcbs_t_result( "$label: an unmarked pending order marked paid is not split", ! $child_of( $uid ) && array( 'ZZ WCBS Stock1' => 3 ) === wcbs_t_items( wc_get_order( $uid ) ) );
+
+	// On hold is not paid: a marked order waits for processing or completed.
+	$hid = $new_order( 1, 'pending' );
+	WC_Backorder_Split_Frontend::split_backorder_products( $hid );
+	wc_get_order( $hid )->update_status( 'on-hold' );
+	WC_Backorder_Split_Frontend::run_deferred_splits();
+	$h = wc_get_order( $hid );
+	wcbs_t_result( "$label: a marked order put on hold is not split yet", ! $child_of( $hid ) && 'yes' === $h->get_meta( '_wcbs_awaiting_payment' ) && array( 'ZZ WCBS Stock1' => 3 ) === wcbs_t_items( $h ), wp_json_encode( wcbs_t_items( $h ) ) );
+	$h->update_status( 'processing' );
+	WC_Backorder_Split_Frontend::run_deferred_splits();
+	wcbs_t_result( "$label: the same order splits once it is processing", (bool) $child_of( $hid ) && array( 'ZZ WCBS Stock1' => 1 ) === wcbs_t_items( wc_get_order( $hid ) ) );
+
+	// Queued when it was paid, back on hold before the end of the request: still whole.
+	$bid = $new_order( 1, 'pending' );
+	WC_Backorder_Split_Frontend::split_backorder_products( $bid );
+	wc_get_order( $bid )->update_status( 'processing' );
+	wc_get_order( $bid )->update_status( 'on-hold' );
+	WC_Backorder_Split_Frontend::run_deferred_splits();
+	$b = wc_get_order( $bid );
+	wcbs_t_result( "$label: a marked order back on hold before the deferred split stays whole", ! $child_of( $bid ) && 'yes' === $b->get_meta( '_wcbs_awaiting_payment' ) && array( 'ZZ WCBS Stock1' => 3 ) === wcbs_t_items( $b ), $b->get_status() . ' ' . wp_json_encode( wcbs_t_items( $b ) ) );
+
+	// A paid status a store adds through WooCommerce's filter counts as paid.
+	$paid_filter = function ( $statuses ) {
+		return array_merge( $statuses, array( 'on-hold' ) );
+	};
+	add_filter( 'woocommerce_order_is_paid_statuses', $paid_filter );
+	$cid = $new_order( 1, 'pending' );
+	WC_Backorder_Split_Frontend::split_backorder_products( $cid );
+	wc_get_order( $cid )->update_status( 'on-hold' );
+	WC_Backorder_Split_Frontend::run_deferred_splits();
+	remove_filter( 'woocommerce_order_is_paid_statuses', $paid_filter );
+	wcbs_t_result( "$label: a store's own paid status splits a marked order", (bool) $child_of( $cid ) && array( 'ZZ WCBS Stock1' => 1 ) === wcbs_t_items( wc_get_order( $cid ) ) );
+
+	// A deferred split that fails keeps the mark, so the next paid status change retries it.
+	$eid  = $new_order( 1, 'pending' );
+	WC_Backorder_Split_Frontend::split_backorder_products( $eid );
+	$boom = function () {
+		throw new Exception( 'ZZ test failure' );
+	};
+	add_action( 'wcbs_before_split_order', $boom );
+	wc_get_order( $eid )->update_status( 'processing' );
+	WC_Backorder_Split_Frontend::run_deferred_splits();
+	remove_action( 'wcbs_before_split_order', $boom );
+	$e = wc_get_order( $eid );
+	wcbs_t_result( "$label: a failed deferred split keeps the payment mark", ! $child_of( $eid ) && 'yes' === $e->get_meta( '_wcbs_awaiting_payment' ), 'mark: ' . $e->get_meta( '_wcbs_awaiting_payment' ) );
+	$e->update_status( 'completed' );
+	WC_Backorder_Split_Frontend::run_deferred_splits();
+	$e = wc_get_order( $eid );
+	wcbs_t_result( "$label: it splits on the next paid status change", (bool) $child_of( $eid ) && '' === $e->get_meta( '_wcbs_awaiting_payment' ) && array( 'ZZ WCBS Stock1' => 1 ) === wcbs_t_items( $e ), wp_json_encode( wcbs_t_items( $e ) ) );
+
+	// The payment failed in another request after this one loaded the order:
+	// the status is checked again once the lock is held.
+	$xid = $new_order( 1, 'processing' );
+	wc_get_order( $xid ); // Loaded, and cached, while still processing.
+	if ( Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled() ) {
+		$GLOBALS['wpdb']->update( "{$GLOBALS['wpdb']->prefix}wc_orders", array( 'status' => 'wc-failed' ), array( 'id' => $xid ) );
+	} else {
+		$GLOBALS['wpdb']->update( $GLOBALS['wpdb']->posts, array( 'post_status' => 'wc-failed' ), array( 'ID' => $xid ) );
+	}
+	WC_Backorder_Split_Frontend::split_backorder_products( $xid );
+	wcbs_t_result( "$label: an order that failed in another request is not split", ! $child_of( $xid ) && array( 'ZZ WCBS Stock1' => 3 ) === wcbs_t_items( wc_get_order( $xid ) ) );
+
+	// The payment is confirmed in another request while the confirmation page
+	// saves its mark: the stored status is paid, so the page splits at once.
+	$rid  = $new_order( 1, 'pending' );
+	$race = function ( $order ) use ( $rid, &$race ) {
+		global $wpdb;
+		if ( $order->get_id() !== $rid ) {
+			return;
+		}
+		remove_action( 'woocommerce_after_order_object_save', $race );
+		if ( Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled() ) {
+			$wpdb->update( "{$wpdb->prefix}wc_orders", array( 'status' => 'wc-processing' ), array( 'id' => $rid ) );
+		} else {
+			$wpdb->update( $wpdb->posts, array( 'post_status' => 'wc-processing' ), array( 'ID' => $rid ) );
+		}
+	};
+	add_action( 'woocommerce_after_order_object_save', $race );
+	WC_Backorder_Split_Frontend::split_backorder_products( $rid );
+	remove_action( 'woocommerce_after_order_object_save', $race );
+	$rcid = $child_of( $rid );
+	wcbs_t_result( "$label: payment confirmed while the page saved its mark still splits", $rcid && array( 'ZZ WCBS Stock1' => 1 ) === wcbs_t_items( wc_get_order( $rid ) ), 'child ' . $rcid );
+
+	// Lock: a split already running elsewhere stops this one; an expired lock does not.
+	global $wpdb;
+	$lid = $new_order( 1, 'processing' );
+	$wpdb->insert( $wpdb->options, array( 'option_name' => 'wcbs_split_lock_' . $lid, 'option_value' => (string) time(), 'autoload' => 'no' ) );
+	WC_Backorder_Split_Frontend::split_backorder_products( $lid );
+	wcbs_t_result( "$label: an order locked by another split is not split again", ! $child_of( $lid ) && array( 'ZZ WCBS Stock1' => 3 ) === wcbs_t_items( wc_get_order( $lid ) ) );
+	$wpdb->update( $wpdb->options, array( 'option_value' => (string) ( time() - 600 ) ), array( 'option_name' => 'wcbs_split_lock_' . $lid ) );
+	WC_Backorder_Split_Frontend::split_backorder_products( $lid );
+	$lock_left = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name = %s", 'wcbs_split_lock_' . $lid ) );
+	wcbs_t_result( "$label: an expired lock is taken over and released after the split", $child_of( $lid ) && 0 === $lock_left, "locks left: $lock_left" );
+
+	// Another request split the order after this one loaded it: the database
+	// check under the lock stops a second backorder.
+	$sid = $new_order( 1, 'processing' );
+	wc_get_order( $sid ); // Loaded, and cached, before the other request's split.
+	if ( Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled() ) {
+		$wpdb->insert( "{$wpdb->prefix}wc_orders_meta", array( 'order_id' => $sid, 'meta_key' => '_wcbs_backorder_id', 'meta_value' => '999999' ) );
+	} else {
+		$wpdb->insert( $wpdb->postmeta, array( 'post_id' => $sid, 'meta_key' => '_wcbs_backorder_id', 'meta_value' => '999999' ) );
+	}
+	WC_Backorder_Split_Frontend::split_backorder_products( $sid );
+	$parents = Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled()
+		? (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}wc_orders_meta WHERE meta_key = '_wcbs_parent_order_id' AND meta_value = %s", (string) $sid ) )
+		: (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = '_wcbs_parent_order_id' AND meta_value = %s", (string) $sid ) );
+	wcbs_t_result( "$label: an order split by another request is not split again", 0 === $parents, "backorders: $parents" );
+
+	// The payment details another request saved after this one loaded the order
+	// (a notification recording the transaction) reach the backorder.
+	$tid = $new_order( 1, 'processing' );
+	wc_get_order( $tid ); // Loaded, and cached, before the notification.
+	if ( Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled() ) {
+		$wpdb->update( "{$wpdb->prefix}wc_orders", array( 'transaction_id' => 'ZZTXN1' ), array( 'id' => $tid ) );
+	} else {
+		// Straight to the table, as another request would: this request's cache keeps the old value.
+		$wpdb->delete( $wpdb->postmeta, array( 'post_id' => $tid, 'meta_key' => '_transaction_id' ) );
+		$wpdb->insert( $wpdb->postmeta, array( 'post_id' => $tid, 'meta_key' => '_transaction_id', 'meta_value' => 'ZZTXN1' ) );
+	}
+	WC_Backorder_Split_Frontend::split_backorder_products( $tid );
+	$tcid = $child_of( $tid );
+	$txn  = $tcid ? wc_get_order( $tcid )->get_transaction_id() : '';
+	wcbs_t_result( "$label: the backorder gets payment details saved by another request", 'ZZTXN1' === $txn, "child $tcid transaction '$txn'" );
+
 	// A percent coupon: each order keeps its own share of the discount, counted once.
 	if ( empty( $ids['coupon_pct'] ) ) {
 		$c = new WC_Coupon();

@@ -4,7 +4,7 @@
  * Plugin URI: https://www.wpheka.com/product/wc-backorder-split
  * Description: Moves backordered items into their own linked order, so you ship what is in stock today. Shipping is paid once.
  * Author: WPHEKA
- * Version: 2.4.2
+ * Version: 2.4.3
  * Requires at least: 6.5
  * Requires PHP: 8.1
  * Tested up to: 7.1.4

@@ -6,7 +6,7 @@ Requires PHP: 8.1
 Tested up to: 7.1.4
 WC requires at least: 4.2
 WC tested up to: 11.2.1
-Stable tag: 2.4.2
+Stable tag: 2.4.3
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 Donate link: https://www.paypal.me/AKSHAYASWAROOP
@@ -82,10 +82,15 @@ Under WPHEKA > Backorder Split: orders split, orders backordered now, backorders
 
 == Screenshots ==
 
-1. WooCommerce orders admin.
+1. One order became two: the original ships today and the backordered items wait in their own linked order.
 2. WPHEKA > Backorder Split: how many orders have been split, what is backordered now and what moved, with no settings to configure.
 
 == Changelog ==
+
+= 2.4.3 - 2026-11-11 =
+* Fix - An order still waiting for payment when its confirmation page loads (redirect and offsite gateways) is no longer split there. It stays whole, so a failed and retried payment pays the full amount. It splits once the order is paid (processing or completed), also when you confirm it yourself in wp-admin.
+* Fix - The confirmation page and the gateway's payment notification arriving at the same moment can no longer split one order twice.
+* Tweak - New screenshot of a split order on the orders screen.
 
 = 2.4.2 - 2026-11-10 =
 * Fix - An order whose payment failed is no longer split when its confirmation page loads. It stays whole, so a retried payment pays the full amount. It splits once the payment goes through.

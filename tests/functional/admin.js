@@ -77,6 +77,24 @@ async function check(name, fn) {
     await sub.ctx.close();
   }
 
+  // A payment confirmed in wp-admin splits an order that reached the
+  // confirmation page unpaid: the status hook runs on admin requests too.
+  await check('admin: marking a pending order paid in wp-admin splits it', async () => {
+    const p = JSON.parse(php('pending-order.php'));
+    if (p.marked !== 'yes') return [false, 'order was not marked at the confirmation page'];
+    // Its own context: the edited order screen must not linger into the cases below.
+    const own = await as(browser, 'admin');
+    try {
+      await own.page.goto(p.edit, { waitUntil: 'domcontentloaded' });
+      await own.page.selectOption('#order_status', 'wc-processing');
+      await Promise.all([own.page.waitForNavigation({ waitUntil: 'domcontentloaded' }), own.page.click('button.save_order')]);
+    } finally {
+      await own.ctx.close();
+    }
+    const r = JSON.parse(php('order.php', String(p.id)));
+    return [r.status === 'processing' && r.child && r.items['ZZ WCBS Stock1'] === 1 && r.child.items['ZZ WCBS Stock1'] === 2, JSON.stringify(r && { status: r.status, items: r.items, child: r.child && r.child.items })];
+  });
+
   // Review prompt: X snoozes it for this user; "Don't ask again" hides it for good.
   php('usermeta.php', 'admin', 'clear', 'wcbs_review_snoozed_until');
   php('usermeta.php', 'admin', 'clear', 'wcbs_review_dismissed');

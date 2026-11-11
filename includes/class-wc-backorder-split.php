@@ -19,7 +19,7 @@ class WC_Backorder_Split
      *
      * @var string
      */
-    public $version = '2.4.2';
+    public $version = '2.4.3';
 
     /**
      * Min WC required version.
@@ -246,6 +246,7 @@ class WC_Backorder_Split
         }
 
         WC_Backorder_Split_Register::init();
+        WC_Backorder_Split_Frontend::init_payment_hooks();
 
         // The Overview page caches its counts; a new split makes them stale.
         add_action('wcbs_backorder_created', array( $this, 'flush_overview_stats' ));

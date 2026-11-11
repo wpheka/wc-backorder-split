@@ -41,6 +41,77 @@ class WC_Backorder_Split_Frontend {
 	}
 
 	/**
+	 * Hook the payment confirmation that splits an order marked at the
+	 * confirmation page. Registered on every request, not only the front end:
+	 * a payment can be confirmed from wp-admin, admin-ajax, a cron job or a
+	 * REST webhook.
+	 *
+	 * @since 2.4.3
+	 */
+	public static function init_payment_hooks() {
+		add_action( 'woocommerce_order_status_changed', array( __CLASS__, 'maybe_defer_split_on_payment' ), 10, 3 );
+	}
+
+	/**
+	 * Order ids waiting to be split at the end of this request.
+	 *
+	 * @var int[]
+	 */
+	private static $deferred = array();
+
+	/**
+	 * Split an order that reached the confirmation page unpaid, once its
+	 * payment is confirmed.
+	 *
+	 * Redirect and asynchronous gateways can show the confirmation page while
+	 * the order is still pending; the payment is confirmed later, often by a
+	 * server-to-server notification. Only orders marked at the confirmation
+	 * page are handled here, so every other order splits exactly as before.
+	 *
+	 * The split itself waits for the end of the request: the gateway may still
+	 * hold and save its own copy of the order after confirming the payment,
+	 * which would write the original quantities back over the split.
+	 *
+	 * @since 2.4.3
+	 * @param int    $order_id Order id.
+	 * @param string $from     Previous status.
+	 * @param string $to       New status.
+	 */
+	public static function maybe_defer_split_on_payment( $order_id, $from, $to ) {
+		// Paid statuses only (processing and completed, plus any a store adds).
+		// On hold can still fail, and splitting before that would leave only
+		// the in-stock part to pay on a retry.
+		if ( ! in_array( $to, wc_get_is_paid_statuses(), true ) ) {
+			return;
+		}
+
+		$order = wc_get_order( $order_id );
+		if ( ! $order || 'yes' !== $order->get_meta( '_wcbs_awaiting_payment' ) ) {
+			return;
+		}
+
+		if ( empty( self::$deferred ) ) {
+			add_action( 'shutdown', array( __CLASS__, 'run_deferred_splits' ) );
+		}
+		self::$deferred[ (int) $order_id ] = (int) $order_id;
+	}
+
+	/**
+	 * Run the splits deferred by maybe_defer_split_on_payment().
+	 *
+	 * @since 2.4.3
+	 */
+	public static function run_deferred_splits() {
+		$ids            = self::$deferred;
+		self::$deferred = array();
+
+		foreach ( $ids as $order_id ) {
+			self::flush_order_cache( $order_id );
+			self::split_backorder_products( $order_id );
+		}
+	}
+
+	/**
 	 * Store stock quantity in cart item data if backorder is allowed.
 	 *
 	 * @since 1.0.0
@@ -172,6 +243,7 @@ class WC_Backorder_Split_Frontend {
 	 * @param int $order_id
 	 */
 	public static function split_backorder_products( $order_id ) {
+		$locked = false;
 		try {
 			$order = wc_get_order( $order_id );
 
@@ -192,6 +264,40 @@ class WC_Backorder_Split_Frontend {
 				return;
 			}
 
+			// Not paid yet (a redirect or asynchronous gateway). Splitting now
+			// would leave only the in-stock part to pay if this payment fails
+			// and is retried. Mark it, and split when the payment is confirmed.
+			if ( $order->has_status( 'pending' ) ) {
+				$order->update_meta_data( '_wcbs_awaiting_payment', 'yes' );
+				$order->save();
+
+				// The confirmation may have landed while the mark was saved, and
+				// then nothing would split the order. Read the stored status,
+				// not this request's cached copy of the order.
+				if ( in_array( self::stored_status( $order_id ), array( 'pending', 'failed', 'cancelled' ), true ) ) {
+					return;
+				}
+			}
+
+			// The confirmation page and a payment notification can reach this
+			// point at the same moment. Only one of them may split, and the
+			// other may already have: check the database, then reload the order
+			// past this request's caches.
+			$locked = self::acquire_lock( $order_id );
+			if ( ! $locked || self::stored_meta_exists( $order_id, array( '_wcbs_backorder_id', '_wcbs_processed' ) ) ) {
+				return;
+			}
+			self::flush_order_cache( $order_id );
+			$order = wc_get_order( $order_id );
+			if ( ! $order || $order->has_status( array( 'pending', 'failed', 'cancelled' ) ) ) {
+				return;
+			}
+			// An order that reached the confirmation page unpaid splits only
+			// while it is paid: it may have gone back on hold since.
+			if ( 'yes' === $order->get_meta( '_wcbs_awaiting_payment' ) && ! $order->has_status( wc_get_is_paid_statuses() ) ) {
+				return;
+			}
+
 			if ( ! apply_filters( 'wcbs_should_split_order', true, $order_id, $order ) ) {
 				return;
 			}
@@ -200,6 +306,7 @@ class WC_Backorder_Split_Frontend {
 			if ( self::are_all_products_in_backorder( $order_id ) ) {
 				$order->set_status( 'backordered' );
 				$order->add_meta_data( '_wcbs_processed', 'yes', true );
+				$order->delete_meta_data( '_wcbs_awaiting_payment' );
 				$order->save();
 				return;
 			}
@@ -273,6 +380,10 @@ class WC_Backorder_Split_Frontend {
 			$backorder_items = apply_filters( 'wcbs_backorder_items', $backorder_items, $order_id, $order );
 
 			if ( empty( $backorder_items ) ) {
+				if ( $order->get_meta( '_wcbs_awaiting_payment' ) ) {
+					$order->delete_meta_data( '_wcbs_awaiting_payment' );
+					$order->save();
+				}
 				return;
 			}
 
@@ -407,8 +518,10 @@ class WC_Backorder_Split_Frontend {
 			$backorder_order->calculate_totals();
 			$backorder_order->save();
 
-			// Link orders together
+			// Link orders together. The payment mark goes only now, so a split
+			// that failed above runs again on the next paid status change.
 			$order->add_meta_data( '_wcbs_backorder_id', $backorder_order->get_id(), true );
+			$order->delete_meta_data( '_wcbs_awaiting_payment' );
 
 			/*
 			 * Count completed splits. Used only to decide whether the plugin has
@@ -455,12 +568,146 @@ class WC_Backorder_Split_Frontend {
 		} catch ( Exception $e ) {
 			self::log_error( 'Error in split_backorder_products for order ID ' . $order_id . ': ' . $e->getMessage() );
 			do_action( 'wcbs_split_order_error', $order_id, $e->getMessage() );
+		} finally {
+			if ( $locked ) {
+				self::release_lock( $order_id );
+			}
 		}
 	}
 
 	// =========================================================================
 	// Private helpers
 	// =========================================================================
+
+	/**
+	 * Order status as stored in the database, bypassing every object cache.
+	 *
+	 * @param int $order_id Order id.
+	 * @return string Status without the "wc-" prefix, or '' when not found.
+	 */
+	private static function stored_status( $order_id ) {
+		global $wpdb;
+
+		if ( self::is_hpos_enabled() ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- must skip the caches.
+			$status = $wpdb->get_var( $wpdb->prepare( "SELECT status FROM {$wpdb->prefix}wc_orders WHERE id = %d", $order_id ) );
+		} else {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- must skip the caches.
+			$status = $wpdb->get_var( $wpdb->prepare( "SELECT post_status FROM {$wpdb->posts} WHERE ID = %d", $order_id ) );
+		}
+
+		return 0 === strpos( (string) $status, 'wc-' ) ? substr( $status, 3 ) : (string) $status;
+	}
+
+	/**
+	 * Whether any of the given meta keys is stored for an order, bypassing
+	 * every object cache.
+	 *
+	 * @param int      $order_id Order id.
+	 * @param string[] $keys     Meta keys.
+	 * @return bool
+	 */
+	private static function stored_meta_exists( $order_id, $keys ) {
+		global $wpdb;
+
+		$in = implode( ',', array_fill( 0, count( $keys ), '%s' ) );
+		if ( self::is_hpos_enabled() ) {
+			$sql = "SELECT COUNT(*) FROM {$wpdb->prefix}wc_orders_meta WHERE order_id = %d AND meta_key IN ($in) AND meta_value <> ''";
+		} else {
+			$sql = "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key IN ($in) AND meta_value <> ''";
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- must skip the caches; $in holds only placeholders.
+		return (int) $wpdb->get_var( $wpdb->prepare( $sql, array_merge( array( (int) $order_id ), $keys ) ) ) > 0;
+	}
+
+	/**
+	 * Drop this request's cached copies of an order, so the next
+	 * wc_get_order() reads what another request may have saved since.
+	 *
+	 * @param int $order_id Order id.
+	 */
+	private static function flush_order_cache( $order_id ) {
+		clean_post_cache( $order_id );
+
+		if ( class_exists( 'Automattic\WooCommerce\Caches\OrderCache' ) && function_exists( 'wc_get_container' ) ) {
+			wc_get_container()->get( 'Automattic\WooCommerce\Caches\OrderCache' )->remove( $order_id );
+		}
+
+		if ( self::is_hpos_enabled() ) {
+			$store = WC_Data_Store::load( 'order' );
+			if ( is_callable( array( $store, 'clear_cached_data' ) ) ) {
+				$store->clear_cached_data( array( $order_id ) );
+			}
+		}
+	}
+
+	/**
+	 * Lock values this request holds, keyed by order id.
+	 *
+	 * @var string[]
+	 */
+	private static $locks = array();
+
+	/**
+	 * Take the split lock for one order.
+	 *
+	 * An INSERT IGNORE on the options table's unique key, so two requests can
+	 * never both get it (add_option() upserts and would let both through). The
+	 * value is the time it was taken plus a token unique to this request, so a
+	 * request only ever releases its own lock. A lock left behind by a request
+	 * that died mid-split expires after five minutes; a split takes well under
+	 * a second.
+	 *
+	 * @param int $order_id Order id.
+	 * @return bool True when this request holds the lock.
+	 */
+	private static function acquire_lock( $order_id ) {
+		global $wpdb;
+
+		$name  = 'wcbs_split_lock_' . (int) $order_id;
+		$value = time() . ':' . wp_generate_password( 12, false );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- an atomic lock.
+		$taken = (bool) $wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')", $name, $value ) );
+
+		if ( ! $taken ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- an atomic lock.
+			$held = (string) $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $name ) );
+			if ( '' === $held || (int) $held >= time() - 5 * MINUTE_IN_SECONDS ) {
+				return false;
+			}
+			// Expired. Delete only the row that was read, so two requests that
+			// both see it expired cannot both take the lock.
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- an atomic lock.
+			$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name = %s AND option_value = %s", $name, $held ) );
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- an atomic lock.
+			$taken = (bool) $wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')", $name, $value ) );
+		}
+
+		if ( $taken ) {
+			self::$locks[ (int) $order_id ] = $value;
+		}
+		return $taken;
+	}
+
+	/**
+	 * Release the split lock for one order, only if this request holds it.
+	 *
+	 * @param int $order_id Order id.
+	 */
+	private static function release_lock( $order_id ) {
+		global $wpdb;
+
+		if ( ! isset( self::$locks[ (int) $order_id ] ) ) {
+			return;
+		}
+		$value = self::$locks[ (int) $order_id ];
+		unset( self::$locks[ (int) $order_id ] );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- an atomic lock.
+		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name = %s AND option_value = %s", 'wcbs_split_lock_' . (int) $order_id, $value ) );
+	}
 
 	/**
 	 * How much of a line's quantity is covered by stock, given the lines of the
