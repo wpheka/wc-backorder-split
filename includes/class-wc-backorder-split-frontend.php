@@ -50,6 +50,11 @@ class WC_Backorder_Split_Frontend {
 	 */
 	public static function init_payment_hooks() {
 		add_action( 'woocommerce_order_status_changed', array( __CLASS__, 'maybe_defer_split_on_payment' ), 10, 3 );
+
+		// Finishes a split whose request died part way. Registered here, with
+		// the payment hooks, because the scheduled action runs in a cron
+		// request rather than on the front end.
+		add_action( 'wcbs_resume_split', array( __CLASS__, 'resume_split' ), 10, 1 );
 	}
 
 	/**
@@ -252,8 +257,12 @@ class WC_Backorder_Split_Frontend {
 				return;
 			}
 
+			// A split that did not finish leaves a state behind. Such an order is
+			// resumed rather than skipped, even though _wcbs_backorder_id is set.
+			$resuming = '' !== self::split_state( $order );
+
 			// Prevent duplicate splits
-			if ( $order->get_meta( '_wcbs_backorder_id' ) || $order->get_meta( '_wcbs_processed' ) ) {
+			if ( ! $resuming && ( $order->get_meta( '_wcbs_backorder_id' ) || $order->get_meta( '_wcbs_processed' ) ) ) {
 				return;
 			}
 
@@ -267,7 +276,7 @@ class WC_Backorder_Split_Frontend {
 			// Not paid yet (a redirect or asynchronous gateway). Splitting now
 			// would leave only the in-stock part to pay if this payment fails
 			// and is retried. Mark it, and split when the payment is confirmed.
-			if ( $order->has_status( 'pending' ) ) {
+			if ( ! $resuming && $order->has_status( 'pending' ) ) {
 				$order->update_meta_data( '_wcbs_awaiting_payment', 'yes' );
 				$order->save();
 
@@ -284,7 +293,7 @@ class WC_Backorder_Split_Frontend {
 			// other may already have: check the database, then reload the order
 			// past this request's caches.
 			$locked = self::acquire_lock( $order_id );
-			if ( ! $locked || self::stored_meta_exists( $order_id, array( '_wcbs_backorder_id', '_wcbs_processed' ) ) ) {
+			if ( ! $locked ) {
 				return;
 			}
 			self::flush_order_cache( $order_id );
@@ -292,131 +301,119 @@ class WC_Backorder_Split_Frontend {
 			if ( ! $order || $order->has_status( array( 'pending', 'failed', 'cancelled' ) ) ) {
 				return;
 			}
+
+			// Read the state again now the caches are gone: another request may
+			// have started, or finished, a split since the first check.
+			$resuming = '' !== self::split_state( $order );
+			if ( ! $resuming && self::stored_meta_exists( $order_id, array( '_wcbs_backorder_id', '_wcbs_processed' ) ) ) {
+				return;
+			}
+
 			// An order that reached the confirmation page unpaid splits only
 			// while it is paid: it may have gone back on hold since.
 			if ( 'yes' === $order->get_meta( '_wcbs_awaiting_payment' ) && ! $order->has_status( wc_get_is_paid_statuses() ) ) {
 				return;
 			}
 
-			if ( ! apply_filters( 'wcbs_should_split_order', true, $order_id, $order ) ) {
-				return;
-			}
+			$plan = array();
 
-			// All items already on backorder — just flip the status, no split needed
-			if ( self::are_all_products_in_backorder( $order_id ) ) {
-				$order->set_status( 'backordered' );
-				$order->add_meta_data( '_wcbs_processed', 'yes', true );
-				$order->delete_meta_data( '_wcbs_awaiting_payment' );
-				$order->save();
-				return;
-			}
+			if ( $resuming ) {
+				$plan = self::split_plan( $order );
 
-			do_action( 'wcbs_before_split_order', $order_id, $order );
-
-			// Classify every line item before touching anything in the DB.
-			// Per-unit prices are captured now so they remain correct after
-			// the source items are updated.
-			$backorder_items        = array();
-			$source_items_to_update = array(); // partial backorder: reduce qty on source
-			$source_items_to_remove = array(); // full backorder: remove from source
-
-			foreach ( $order->get_items( 'line_item' ) as $item_id => $item ) {
-				/** @var WC_Order_Item_Product $item */
-				$product = $item->get_product();
-				if ( ! $product ) {
-					continue;
-				}
-
-				$quantity              = $item->get_quantity( 'edit' );
-				$stock_quantity_at_add = $item->get_meta( '_stock_quantity_at_add' );
-				$subtotal_per_unit     = (float) $order->get_item_subtotal( $item, false, false );
-				$total_per_unit        = (float) $order->get_item_total( $item, false, false );
-				$original_reduced      = $item->get_meta( '_reduced_stock' );
-
-				if ( $stock_quantity_at_add !== '' ) {
-					$stock_at_add = (int) $stock_quantity_at_add;
-
-					if ( $quantity > $stock_at_add && $product->backorders_allowed() ) {
-						$backorder_qty = $quantity - $stock_at_add;
-
-						// Split _reduced_stock proportionally; source keeps its share first
-						$kept_reduced      = $original_reduced ? min( (int) $original_reduced, $stock_at_add ) : null;
-						$backorder_reduced = $original_reduced ? ( (int) $original_reduced - (int) $kept_reduced ) : null;
-
-						if ( $stock_at_add > 0 ) {
-							$source_items_to_update[ $item_id ] = array(
-								'item'         => $item,
-								'new_qty'      => $stock_at_add,
-								'new_subtotal' => $subtotal_per_unit * $stock_at_add,
-								'new_total'    => $total_per_unit * $stock_at_add,
-								'new_reduced'  => $kept_reduced,
-							);
-						} else {
-							// Stock was 0 — entire quantity goes to backorder
-							$source_items_to_remove[] = $item_id;
-						}
-
-						$backorder_items[] = array(
-							'item'     => $item,
-							'quantity' => $backorder_qty,
-							'subtotal' => $subtotal_per_unit * $backorder_qty,
-							'total'    => $total_per_unit * $backorder_qty,
-							'reduced'  => $backorder_reduced,
-						);
-					}
-				} elseif ( $product->is_on_backorder( $quantity ) ) {
-					// No stock-at-add meta but product is on backorder (e.g. stock was null)
-					$source_items_to_remove[] = $item_id;
-					$backorder_items[]        = array(
-						'item'     => $item,
-						'quantity' => $quantity,
-						'subtotal' => $subtotal_per_unit * $quantity,
-						'total'    => $total_per_unit * $quantity,
-						'reduced'  => $original_reduced ?: null,
-					);
+				if ( empty( $plan['items'] ) ) {
+					// A state with no usable plan. There is nothing to resume
+					// from, so clear it and let the ordinary path decide again.
+					self::clear_split( $order );
+					$resuming = false;
 				}
 			}
 
-			$backorder_items = apply_filters( 'wcbs_backorder_items', $backorder_items, $order_id, $order );
+			if ( ! $resuming ) {
+				if ( ! apply_filters( 'wcbs_should_split_order', true, $order_id, $order ) ) {
+					return;
+				}
 
-			if ( empty( $backorder_items ) ) {
-				if ( $order->get_meta( '_wcbs_awaiting_payment' ) ) {
+				// All items already on backorder — just flip the status, no split needed
+				if ( self::are_all_products_in_backorder( $order_id ) ) {
+					$order->set_status( 'backordered' );
+					$order->add_meta_data( '_wcbs_processed', 'yes', true );
 					$order->delete_meta_data( '_wcbs_awaiting_payment' );
 					$order->save();
+					return;
 				}
+
+				do_action( 'wcbs_before_split_order', $order_id, $order );
+
+				$plan = self::build_split_plan( $order );
+
+				if ( empty( $plan['items'] ) ) {
+					if ( $order->get_meta( '_wcbs_awaiting_payment' ) ) {
+						$order->delete_meta_data( '_wcbs_awaiting_payment' );
+						$order->save();
+					}
+					return;
+				}
+
+				/*
+				 * The plan is written before a single line moves. Everything
+				 * after this point can be finished, or reported, from it: the
+				 * quantities and totals it holds are the ones the order had
+				 * before the split started.
+				 */
+				$order->update_meta_data( self::PLAN_META, $plan );
+				$order->update_meta_data( self::STATE_META, self::STATE_PLANNED );
+				$order->save();
+
+				// A crash from here on cannot rely on another page load for this
+				// order, so a scheduled action picks it up instead.
+				self::schedule_resume( $order_id );
+			}
+
+			self::run_split( $order, $plan, $resuming );
+
+		} catch ( Exception $e ) {
+			self::log_error( 'Error in split_backorder_products for order ID ' . $order_id . ': ' . $e->getMessage() );
+			do_action( 'wcbs_split_order_error', $order_id, $e->getMessage() );
+		} finally {
+			if ( $locked ) {
+				self::release_lock( $order_id );
+			}
+		}
+	}
+
+	/**
+	 * Carry out a planned split, from wherever the last attempt stopped.
+	 *
+	 * Every step is written so that running it twice gives the same result as
+	 * running it once: each one sets a value taken from the plan rather than
+	 * changing the current value, and each one is skipped when the recorded
+	 * state shows it is already done.
+	 *
+	 * @since 2.4.4
+	 * @param WC_Order $order    Source order.
+	 * @param array    $plan     Split plan.
+	 * @param bool     $resuming Whether this is picking up an interrupted split.
+	 * @return void
+	 */
+	private static function run_split( $order, $plan, $resuming ) {
+		$order_id = $order->get_id();
+		$state    = self::split_state( $order );
+
+		/*
+		 * 1. The child order, created before any line moves, and linked in both
+		 * directions straight away. A crash from here leaves the same line on
+		 * two orders, which the next attempt finds and tidies, rather than on
+		 * none, which nothing could find.
+		 */
+		$backorder_order = self::find_child_order( $order );
+
+		if ( ! $backorder_order ) {
+			if ( self::state_at_least( $state, self::STATE_CHILD_FILLED ) ) {
+				// Lines have already moved and the order holding them is gone.
+				self::report_unrecoverable( $order, $plan );
 				return;
 			}
 
-			// ---------------------------------------------------------------
-			// 1. Update source order items in-place (preserve all item meta)
-			// ---------------------------------------------------------------
-			foreach ( $source_items_to_update as $data ) {
-				/** @var WC_Order_Item_Product $src */
-				$src = $data['item'];
-				$src->set_quantity( $data['new_qty'] );
-				$src->set_subtotal( $data['new_subtotal'] );
-				$src->set_total( $data['new_total'] );
-				if ( $data['new_reduced'] ) {
-					$src->update_meta_data( '_reduced_stock', $data['new_reduced'] );
-				}
-				$src->save();
-				// Note: no add_item() call here — $src IS the cached object (same PHP reference
-				// from get_items()), so the cache already reflects the updated qty/totals.
-				// Calling add_item() would add a second 'new:ID' key and double-count this item
-				// in the subsequent calculate_totals() call.
-			}
-
-			foreach ( $source_items_to_remove as $item_id ) {
-				$order->remove_item( $item_id );
-			}
-
-			$order->calculate_totals();
-			$order->save();
-
-			// ---------------------------------------------------------------
-			// 2. Create the backorder order with emails suppressed to avoid
-			//    sending duplicate processing/new-order notifications
-			// ---------------------------------------------------------------
 			self::maybe_disable_emails( $order );
 
 			$backorder_order = wc_create_order( array(
@@ -431,108 +428,218 @@ class WC_Backorder_Split_Frontend {
 				return;
 			}
 
-			// ---------------------------------------------------------------
-			// 3. Copy addresses + HPOS-aware address indexes (for order search)
-			// ---------------------------------------------------------------
-			$backorder_order->set_address( $order->get_address( 'billing' ), 'billing' );
-			$backorder_order->set_address( $order->get_address( 'shipping' ), 'shipping' );
+			$backorder_order->add_meta_data( '_wcbs_parent_order_id', $order_id, true );
+			$backorder_order->save();
 
-			if ( self::is_hpos_enabled() ) {
-				$backorder_order->update_meta_data( '_billing_address_index', $order->get_meta( '_billing_address_index' ) );
-				$backorder_order->update_meta_data( '_shipping_address_index', $order->get_meta( '_shipping_address_index' ) );
-			} else {
-				update_post_meta( $backorder_order->get_id(), '_billing_address_index', get_post_meta( $order->get_id(), '_billing_address_index', true ) );
-				update_post_meta( $backorder_order->get_id(), '_shipping_address_index', get_post_meta( $order->get_id(), '_shipping_address_index', true ) );
-			}
+			$order->update_meta_data( '_wcbs_backorder_id', $backorder_order->get_id() );
+			$order->update_meta_data( self::STATE_META, self::STATE_CHILD_CREATED );
+			$order->save();
+			$state = self::STATE_CHILD_CREATED;
+		}
 
-			// ---------------------------------------------------------------
-			// 4. Copy all standard order fields
-			// ---------------------------------------------------------------
-			$backorder_order->set_currency( $order->get_currency() );
-			$backorder_order->set_prices_include_tax( $order->get_prices_include_tax() );
-			$backorder_order->set_customer_ip_address( $order->get_customer_ip_address() );
-			$backorder_order->set_customer_user_agent( $order->get_customer_user_agent() );
-			$backorder_order->set_customer_note( $order->get_customer_note() );
-			$backorder_order->set_payment_method( $order->get_payment_method() );
-			$backorder_order->set_payment_method_title( $order->get_payment_method_title() );
-			$backorder_order->set_transaction_id( $order->get_transaction_id() );
-			$backorder_order->set_date_paid( $order->get_date_paid() );
-			$backorder_order->set_date_completed( $order->get_date_completed() );
-			$backorder_order->set_order_stock_reduced( $order->get_order_stock_reduced() );
+		// ---------------------------------------------------------------
+		// 2. Addresses + HPOS-aware address indexes (for order search)
+		// ---------------------------------------------------------------
+		$backorder_order->set_address( $order->get_address( 'billing' ), 'billing' );
+		$backorder_order->set_address( $order->get_address( 'shipping' ), 'shipping' );
 
-			// ---------------------------------------------------------------
-			// 5. Copy attribution and VAT exemption meta fields
-			// ---------------------------------------------------------------
-			foreach ( self::meta_fields_to_copy() as $meta_field ) {
-				if ( $order->meta_exists( $meta_field ) ) {
-					foreach ( $order->get_meta( $meta_field, false, 'edit' ) as $meta_value ) {
-						$backorder_order->update_meta_data( $meta_field, $meta_value->value );
-					}
+		if ( self::is_hpos_enabled() ) {
+			$backorder_order->update_meta_data( '_billing_address_index', $order->get_meta( '_billing_address_index' ) );
+			$backorder_order->update_meta_data( '_shipping_address_index', $order->get_meta( '_shipping_address_index' ) );
+		} else {
+			update_post_meta( $backorder_order->get_id(), '_billing_address_index', get_post_meta( $order->get_id(), '_billing_address_index', true ) );
+			update_post_meta( $backorder_order->get_id(), '_shipping_address_index', get_post_meta( $order->get_id(), '_shipping_address_index', true ) );
+		}
+
+		// ---------------------------------------------------------------
+		// 3. Copy all standard order fields
+		// ---------------------------------------------------------------
+		$backorder_order->set_currency( $order->get_currency() );
+		$backorder_order->set_prices_include_tax( $order->get_prices_include_tax() );
+		$backorder_order->set_customer_ip_address( $order->get_customer_ip_address() );
+		$backorder_order->set_customer_user_agent( $order->get_customer_user_agent() );
+		$backorder_order->set_customer_note( $order->get_customer_note() );
+		$backorder_order->set_payment_method( $order->get_payment_method() );
+		$backorder_order->set_payment_method_title( $order->get_payment_method_title() );
+		$backorder_order->set_transaction_id( $order->get_transaction_id() );
+		$backorder_order->set_date_paid( $order->get_date_paid() );
+		$backorder_order->set_date_completed( $order->get_date_completed() );
+		$backorder_order->set_order_stock_reduced( $order->get_order_stock_reduced() );
+
+		// ---------------------------------------------------------------
+		// 4. Copy attribution and VAT exemption meta fields
+		// ---------------------------------------------------------------
+		foreach ( self::meta_fields_to_copy() as $meta_field ) {
+			if ( $order->meta_exists( $meta_field ) ) {
+				foreach ( $order->get_meta( $meta_field, false, 'edit' ) as $meta_value ) {
+					$backorder_order->update_meta_data( $meta_field, $meta_value->value );
 				}
 			}
+		}
 
-			// ---------------------------------------------------------------
-			// 6. Clone line items — preserves product, variation, and all
-			//    item-level meta (e.g. custom fields, addons, subscriptions)
-			// ---------------------------------------------------------------
-			foreach ( $backorder_items as $data ) {
-				$source_item = $data['item'];
+		/*
+		 * 5. Clone the planned lines onto the child. Each one records the source
+		 * item it came from, so an attempt that stopped halfway moves only what
+		 * is still missing. The source is untouched until this step is done,
+		 * which is why a resume can still read the lines it needs.
+		 */
+		$source_items = $order->get_items( 'line_item' );
 
-				$target_item = clone $source_item;
+		if ( ! self::state_at_least( $state, self::STATE_CHILD_FILLED ) ) {
+			$already = self::moved_source_item_ids( $backorder_order );
+
+			foreach ( $plan['items'] as $entry ) {
+				$item_id = (int) $entry['item_id'];
+
+				if ( in_array( $item_id, $already, true ) ) {
+					continue;
+				}
+
+				if ( empty( $source_items[ $item_id ] ) ) {
+					// The plan no longer matches the order: someone changed it
+					// between the interrupted attempt and this one.
+					self::report_unrecoverable( $order, $plan, 'changed' );
+					return;
+				}
+
+				/*
+				 * Built completely, then written once. WooCommerce writes the
+				 * row, its data and its meta inside a single create, so a line
+				 * is either absent or present, attached to the backorder order
+				 * and carrying the marker that says which source line it came
+				 * from. That is what lets a retry move only what is missing,
+				 * and it is why the order id is set before the save rather
+				 * than left at zero until the order itself is saved.
+				 */
+				$target_item = clone $source_items[ $item_id ];
 				$target_item->set_id( 0 );
-				$target_item->set_order_id( 0 );
-				$target_item->save(); // creates the DB record with a new ID
+				$target_item->set_order_id( $backorder_order->get_id() );
+				$target_item->set_quantity( max( 0.0, (float) $entry['quantity'] ) );
+				$target_item->set_subtotal( max( 0.0, (float) $entry['subtotal'] ) );
+				$target_item->set_total( max( 0.0, (float) $entry['total'] ) );
 
-				$target_item->set_quantity( max( 0.0, (float) $data['quantity'] ) );
-				$target_item->set_subtotal( max( 0.0, (float) $data['subtotal'] ) );
-				$target_item->set_total( max( 0.0, (float) $data['total'] ) );
-
-				if ( $data['reduced'] ) {
-					$target_item->update_meta_data( '_reduced_stock', $data['reduced'] );
+				if ( $entry['reduced'] ) {
+					$target_item->update_meta_data( '_reduced_stock', $entry['reduced'] );
 				} else {
 					$target_item->delete_meta_data( '_reduced_stock' );
 				}
 
+				$target_item->update_meta_data( '_wcbs_from_item_id', $item_id );
 				$target_item->save();
 				$backorder_order->add_item( $target_item );
 			}
 
-			/*
-			 * 7. Shipping, fees and coupons. The customer paid them once, on the
-			 * original order, so by default the backorder only gets the shipping
-			 * method at zero cost (the warehouse still sees how to ship it). Fees
-			 * and coupon lines stay on the original; the moved lines already carry
-			 * their share of any discount.
-			 */
-			if ( apply_filters( 'wcbs_copy_charges_to_backorder', false, $order, $backorder_order ) ) {
-				self::copy_shipping_to_backorder( $order, $backorder_order );
-				self::copy_fees_to_backorder( $order, $backorder_order );
-				self::copy_coupons_to_backorder( $order, $backorder_order );
-			} else {
-				self::copy_shipping_method_to_backorder( $order, $backorder_order, $backorder_items );
+			$backorder_order->save();
+
+			$order->update_meta_data( self::STATE_META, self::STATE_CHILD_FILLED );
+			$order->save();
+			$state = self::STATE_CHILD_FILLED;
+		}
+
+		/*
+		 * 6. Only now does the source lose anything, and only to lines the child
+		 * already holds. Setting each line to the quantity the plan recorded
+		 * gives the same answer however many times it runs.
+		 */
+		if ( ! self::state_at_least( $state, self::STATE_SOURCE_UPDATED ) ) {
+			foreach ( $plan['items'] as $entry ) {
+				$item_id = (int) $entry['item_id'];
+
+				if ( 'remove' === $entry['source'] ) {
+					if ( isset( $source_items[ $item_id ] ) ) {
+						$order->remove_item( $item_id );
+					}
+					continue;
+				}
+
+				if ( 'reduce' !== $entry['source'] || empty( $source_items[ $item_id ] ) ) {
+					continue;
+				}
+
+				/** @var WC_Order_Item_Product $src */
+				$src = $source_items[ $item_id ];
+				$src->set_quantity( $entry['new_qty'] );
+				$src->set_subtotal( $entry['new_subtotal'] );
+				$src->set_total( $entry['new_total'] );
+				if ( $entry['new_reduced'] ) {
+					$src->update_meta_data( '_reduced_stock', $entry['new_reduced'] );
+				}
+				$src->save();
+				// Note: no add_item() call here — $src IS the cached object (same PHP reference
+				// from get_items()), so the cache already reflects the updated qty/totals.
+				// Calling add_item() would add a second 'new:ID' key and double-count this item
+				// in the subsequent calculate_totals() call.
 			}
 
-			$backorder_status = apply_filters( 'wcbs_backorder_status', 'backordered', $order_id, $order );
-			$backorder_order->set_status( $backorder_status );
-
-			$backorder_order->calculate_totals();
-			$backorder_order->save();
-
-			// Link orders together. The payment mark goes only now, so a split
-			// that failed above runs again on the next paid status change.
-			$order->add_meta_data( '_wcbs_backorder_id', $backorder_order->get_id(), true );
-			$order->delete_meta_data( '_wcbs_awaiting_payment' );
-
-			/*
-			 * Count completed splits. Used only to decide whether the plugin has
-			 * demonstrably done its job before it asks for a review -- a count, not
-			 * a timer, so the ask follows value delivered rather than time elapsed.
-			 */
-			update_option( 'wcbs_split_count', 1 + (int) get_option( 'wcbs_split_count', 0 ), false );
-			$backorder_order->add_meta_data( '_wcbs_parent_order_id', $order->get_id(), true );
+			$order->calculate_totals();
+			$order->update_meta_data( self::STATE_META, self::STATE_SOURCE_UPDATED );
 			$order->save();
-			$backorder_order->save();
+			$state = self::STATE_SOURCE_UPDATED;
+		}
 
+		/*
+		 * 7. Shipping, fees and coupons. The customer paid them once, on the
+		 * original order, so by default the backorder only gets the shipping
+		 * method at zero cost (the warehouse still sees how to ship it). Fees
+		 * and coupon lines stay on the original; the moved lines already carry
+		 * their share of any discount. Each is copied only when the child does
+		 * not already have it, so a resume cannot double them.
+		 */
+		if ( apply_filters( 'wcbs_copy_charges_to_backorder', false, $order, $backorder_order ) ) {
+			if ( ! $backorder_order->get_items( 'shipping' ) ) {
+				self::copy_shipping_to_backorder( $order, $backorder_order );
+			}
+			if ( ! $backorder_order->get_items( 'fee' ) ) {
+				self::copy_fees_to_backorder( $order, $backorder_order );
+			}
+			if ( ! $backorder_order->get_items( 'coupon' ) ) {
+				self::copy_coupons_to_backorder( $order, $backorder_order );
+			}
+		} elseif ( ! $backorder_order->get_items( 'shipping' ) ) {
+			self::copy_shipping_method_to_backorder( $order, $backorder_order, $plan['items'] );
+		}
+
+		$backorder_status = apply_filters( 'wcbs_backorder_status', 'backordered', $order_id, $order );
+		$backorder_order->set_status( $backorder_status );
+
+		$backorder_order->calculate_totals();
+		$backorder_order->save();
+
+		/*
+		 * 8. Finished. The plan and the state go, which is what tells every
+		 * later request that this order is done, and the scheduled fallback is
+		 * cancelled.
+		 */
+		$order->delete_meta_data( self::PLAN_META );
+		$order->delete_meta_data( self::STATE_META );
+		$order->delete_meta_data( '_wcbs_awaiting_payment' );
+
+		/*
+		 * Count completed splits. Used only to decide whether the plugin has
+		 * demonstrably done its job before it asks for a review -- a count, not
+		 * a timer, so the ask follows value delivered rather than time elapsed.
+		 */
+		update_option( 'wcbs_split_count', 1 + (int) get_option( 'wcbs_split_count', 0 ), false );
+		$order->save();
+
+		self::unschedule_resume( $order_id );
+
+		if ( $resuming ) {
+			$order->add_order_note(
+				sprintf(
+					/* translators: %s: order number */
+					__( 'A backorder split was interrupted and has been completed. Backorder items are on order #%s.', 'wc-backorder-split' ),
+					$backorder_order->get_id()
+				)
+			);
+			$backorder_order->add_order_note(
+				sprintf(
+					/* translators: %s: order number */
+					__( 'This order was completed after an interrupted split of order #%s.', 'wc-backorder-split' ),
+					$order->get_id()
+				)
+			);
+		} else {
 			$order->add_order_note(
 				sprintf(
 					/* translators: %s: order number */
@@ -547,38 +654,420 @@ class WC_Backorder_Split_Frontend {
 					$order->get_id()
 				)
 			);
-			if ( (float) $order->get_shipping_total() > 0 && ! (float) $backorder_order->get_shipping_total() ) {
-				$backorder_order->add_order_note(
-					sprintf(
-						/* translators: %s: original order number */
-						__( 'Shipping was charged on order #%s.', 'wc-backorder-split' ),
-						$order->get_id()
-					)
-				);
-			}
-
-			// ---------------------------------------------------------------
-			// 8. Schedule WooCommerce Admin analytics re-import for both orders
-			// ---------------------------------------------------------------
-			self::possibly_schedule_analytics_import( $order, $backorder_order );
-
-			do_action( 'wcbs_backorder_created', $backorder_order->get_id(), $order_id, $backorder_order, $order );
-			do_action( 'wcbs_after_split_order', $order_id, $order );
-
-		} catch ( Exception $e ) {
-			self::log_error( 'Error in split_backorder_products for order ID ' . $order_id . ': ' . $e->getMessage() );
-			do_action( 'wcbs_split_order_error', $order_id, $e->getMessage() );
-		} finally {
-			if ( $locked ) {
-				self::release_lock( $order_id );
-			}
 		}
+
+		if ( (float) $order->get_shipping_total() > 0 && ! (float) $backorder_order->get_shipping_total() ) {
+			$backorder_order->add_order_note(
+				sprintf(
+					/* translators: %s: original order number */
+					__( 'Shipping was charged on order #%s.', 'wc-backorder-split' ),
+					$order->get_id()
+				)
+			);
+		}
+
+		// ---------------------------------------------------------------
+		// 9. Schedule WooCommerce Admin analytics re-import for both orders
+		// ---------------------------------------------------------------
+		self::possibly_schedule_analytics_import( $order, $backorder_order );
+
+		do_action( 'wcbs_backorder_created', $backorder_order->get_id(), $order_id, $backorder_order, $order );
+		do_action( 'wcbs_after_split_order', $order_id, $order );
 	}
 
 	// =========================================================================
 	// Private helpers
 	// =========================================================================
 
+	/**
+	 * Order meta holding the plan of an unfinished split.
+	 */
+	const PLAN_META = '_wcbs_split_plan';
+
+	/**
+	 * Order meta holding how far an unfinished split got. Absent means finished.
+	 */
+	const STATE_META = '_wcbs_split_state';
+
+	const STATE_PLANNED        = 'planned';
+	const STATE_CHILD_CREATED  = 'child_created';
+	const STATE_CHILD_FILLED   = 'child_filled';
+	const STATE_SOURCE_UPDATED = 'source_updated';
+
+	/**
+	 * How far an unfinished split got, or '' when there is none.
+	 *
+	 * @since 2.4.4
+	 * @param WC_Order $order Source order.
+	 * @return string
+	 */
+	private static function split_state( $order ) {
+		return (string) $order->get_meta( self::STATE_META );
+	}
+
+	/**
+	 * The stored plan of an unfinished split.
+	 *
+	 * @since 2.4.4
+	 * @param WC_Order $order Source order.
+	 * @return array
+	 */
+	private static function split_plan( $order ) {
+		$plan = $order->get_meta( self::PLAN_META );
+
+		return is_array( $plan ) ? $plan : array();
+	}
+
+	/**
+	 * Forget an unfinished split, so the ordinary path decides again.
+	 *
+	 * @since 2.4.4
+	 * @param WC_Order $order Source order.
+	 * @return void
+	 */
+	private static function clear_split( $order ) {
+		$order->delete_meta_data( self::PLAN_META );
+		$order->delete_meta_data( self::STATE_META );
+		$order->save();
+		self::unschedule_resume( $order->get_id() );
+	}
+
+	/**
+	 * Order of the split states, so a resume can tell what is already done.
+	 *
+	 * @since 2.4.4
+	 * @param string $state State name.
+	 * @return int
+	 */
+	private static function state_rank( $state ) {
+		$ranks = array(
+			''                         => 0,
+			self::STATE_PLANNED        => 1,
+			self::STATE_CHILD_CREATED  => 2,
+			self::STATE_CHILD_FILLED   => 3,
+			self::STATE_SOURCE_UPDATED => 4,
+		);
+
+		return isset( $ranks[ $state ] ) ? $ranks[ $state ] : 0;
+	}
+
+	/**
+	 * Whether a split reached a given step.
+	 *
+	 * @since 2.4.4
+	 * @param string $state  Recorded state.
+	 * @param string $target State to compare against.
+	 * @return bool
+	 */
+	private static function state_at_least( $state, $target ) {
+		return self::state_rank( $state ) >= self::state_rank( $target );
+	}
+
+	/**
+	 * Work out what the split will do, without changing anything.
+	 *
+	 * One record per source line: what moves to the child, and what happens to
+	 * the line it came from. The quantities and totals are the ones the order
+	 * has now, which is why the plan stays usable after the order changes.
+	 *
+	 * @since 2.4.4
+	 * @param WC_Order $order Source order.
+	 * @return array Plan, with an empty 'items' when there is nothing to split.
+	 */
+	private static function build_split_plan( $order ) {
+		$order_id               = $order->get_id();
+		$backorder_items        = array();
+		$source_items_to_update = array(); // partial backorder: reduce qty on source.
+		$source_items_to_remove = array(); // full backorder: remove from source.
+
+		foreach ( $order->get_items( 'line_item' ) as $item_id => $item ) {
+			/** @var WC_Order_Item_Product $item */
+			$product = $item->get_product();
+			if ( ! $product ) {
+				continue;
+			}
+
+			$quantity              = $item->get_quantity( 'edit' );
+			$stock_quantity_at_add = $item->get_meta( '_stock_quantity_at_add' );
+			$subtotal_per_unit     = (float) $order->get_item_subtotal( $item, false, false );
+			$total_per_unit        = (float) $order->get_item_total( $item, false, false );
+			$original_reduced      = $item->get_meta( '_reduced_stock' );
+
+			if ( '' !== $stock_quantity_at_add ) {
+				$stock_at_add = (int) $stock_quantity_at_add;
+
+				if ( $quantity > $stock_at_add && $product->backorders_allowed() ) {
+					$backorder_qty = $quantity - $stock_at_add;
+
+					// Split _reduced_stock proportionally; source keeps its share first.
+					$kept_reduced      = $original_reduced ? min( (int) $original_reduced, $stock_at_add ) : null;
+					$backorder_reduced = $original_reduced ? ( (int) $original_reduced - (int) $kept_reduced ) : null;
+
+					if ( $stock_at_add > 0 ) {
+						$source_items_to_update[ $item_id ] = array(
+							'new_qty'      => $stock_at_add,
+							'new_subtotal' => $subtotal_per_unit * $stock_at_add,
+							'new_total'    => $total_per_unit * $stock_at_add,
+							'new_reduced'  => $kept_reduced,
+						);
+					} else {
+						// Stock was 0 — entire quantity goes to backorder.
+						$source_items_to_remove[] = $item_id;
+					}
+
+					$backorder_items[] = array(
+						'item'     => $item,
+						'quantity' => $backorder_qty,
+						'subtotal' => $subtotal_per_unit * $backorder_qty,
+						'total'    => $total_per_unit * $backorder_qty,
+						'reduced'  => $backorder_reduced,
+					);
+				}
+			} elseif ( $product->is_on_backorder( $quantity ) ) {
+				// No stock-at-add meta but product is on backorder (e.g. stock was null).
+				$source_items_to_remove[] = $item_id;
+				$backorder_items[]        = array(
+					'item'     => $item,
+					'quantity' => $quantity,
+					'subtotal' => $subtotal_per_unit * $quantity,
+					'total'    => $total_per_unit * $quantity,
+					'reduced'  => $original_reduced ? $original_reduced : null,
+				);
+			}
+		}
+
+		$backorder_items = apply_filters( 'wcbs_backorder_items', $backorder_items, $order_id, $order );
+
+		$plan = array(
+			'version' => 1,
+			'items'   => array(),
+		);
+
+		foreach ( (array) $backorder_items as $data ) {
+			if ( empty( $data['item'] ) || ! is_a( $data['item'], 'WC_Order_Item' ) ) {
+				continue;
+			}
+
+			$item_id = (int) $data['item']->get_id();
+			$entry   = array(
+				'item_id'      => $item_id,
+				'name'         => $data['item']->get_name(),
+				'quantity'     => $data['quantity'],
+				'subtotal'     => $data['subtotal'],
+				'total'        => $data['total'],
+				'reduced'      => isset( $data['reduced'] ) ? $data['reduced'] : null,
+				'source'       => 'none',
+				'new_qty'      => 0,
+				'new_subtotal' => 0,
+				'new_total'    => 0,
+				'new_reduced'  => null,
+			);
+
+			if ( isset( $source_items_to_update[ $item_id ] ) ) {
+				$entry['source']       = 'reduce';
+				$entry['new_qty']      = $source_items_to_update[ $item_id ]['new_qty'];
+				$entry['new_subtotal'] = $source_items_to_update[ $item_id ]['new_subtotal'];
+				$entry['new_total']    = $source_items_to_update[ $item_id ]['new_total'];
+				$entry['new_reduced']  = $source_items_to_update[ $item_id ]['new_reduced'];
+			} elseif ( in_array( $item_id, $source_items_to_remove, true ) ) {
+				$entry['source'] = 'remove';
+			}
+
+			$plan['items'][] = $entry;
+		}
+
+		return $plan;
+	}
+
+	/**
+	 * The child order of a split, however far the last attempt got.
+	 *
+	 * Usually the id recorded on the source. When a split was interrupted
+	 * between creating the child and recording its id, the child is found by
+	 * the link it carries in the other direction, and the id is written back.
+	 *
+	 * @since 2.4.4
+	 * @param WC_Order $order Source order.
+	 * @return WC_Order|null
+	 */
+	private static function find_child_order( $order ) {
+		$child_id = (int) $order->get_meta( '_wcbs_backorder_id' );
+
+		if ( $child_id ) {
+			$child = wc_get_order( $child_id );
+			if ( $child ) {
+				return $child;
+			}
+		}
+
+		$found = self::stored_child_id( $order->get_id() );
+
+		if ( $found ) {
+			$child = wc_get_order( $found );
+			if ( $child ) {
+				$order->update_meta_data( '_wcbs_backorder_id', $found );
+				$order->save();
+				return $child;
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Id of the order that names this one as its split parent, bypassing caches.
+	 *
+	 * @since 2.4.4
+	 * @param int $order_id Source order id.
+	 * @return int Child order id, or 0.
+	 */
+	private static function stored_child_id( $order_id ) {
+		global $wpdb;
+
+		if ( self::is_hpos_enabled() ) {
+			$sql = "SELECT order_id FROM {$wpdb->prefix}wc_orders_meta WHERE meta_key = '_wcbs_parent_order_id' AND meta_value = %s ORDER BY order_id DESC LIMIT 1";
+		} else {
+			$sql = "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_wcbs_parent_order_id' AND meta_value = %s ORDER BY post_id DESC LIMIT 1";
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- must skip the caches; $sql holds only a placeholder.
+		return (int) $wpdb->get_var( $wpdb->prepare( $sql, (string) $order_id ) );
+	}
+
+	/**
+	 * Source line ids a previous attempt already moved to the child.
+	 *
+	 * @since 2.4.4
+	 * @param WC_Order $child Backorder order.
+	 * @return int[]
+	 */
+	private static function moved_source_item_ids( $child ) {
+		$ids = array();
+
+		foreach ( $child->get_items( 'line_item' ) as $item ) {
+			$from = (int) $item->get_meta( '_wcbs_from_item_id' );
+			if ( $from ) {
+				$ids[] = $from;
+			}
+		}
+
+		return $ids;
+	}
+
+	/**
+	 * Tell the merchant a split cannot be finished, and stop trying.
+	 *
+	 * Reached only when lines have already moved and the order holding them is
+	 * gone, or when the order no longer matches the plan. Silence here would
+	 * leave items the customer paid for on no order at all, which is the whole
+	 * failure this recovery exists to prevent.
+	 *
+	 * @since 2.4.4
+	 * @param WC_Order $order  Source order.
+	 * @param array    $plan   Split plan.
+	 * @param string   $reason 'missing' when the backorder order is gone after lines
+	 *                         moved, 'changed' when the order no longer matches the plan.
+	 * @return void
+	 */
+	private static function report_unrecoverable( $order, $plan, $reason = 'missing' ) {
+		$names = array();
+
+		foreach ( $plan['items'] as $entry ) {
+			$names[] = $entry['name'] . ' &times; ' . wc_stock_amount( $entry['quantity'] );
+		}
+
+		$child_id = (int) $order->get_meta( '_wcbs_backorder_id' );
+		$listed   = implode( ', ', $names );
+
+		if ( 'changed' === $reason ) {
+			// The backorder order exists and the original was edited before the
+			// split could finish, so nothing is lost: the two orders need a look.
+			$note = sprintf(
+				/* translators: 1: backorder order number, 2: list of items */
+				__( 'A backorder split could not be completed because this order was changed before it finished. Please compare this order with backorder order #%1$s. Items the split was moving: %2$s.', 'wc-backorder-split' ),
+				$child_id ? $child_id : '-',
+				$listed
+			);
+		} else {
+			$note = sprintf(
+				/* translators: 1: backorder order number, 2: list of items */
+				__( 'A backorder split could not be completed: order #%1$s is missing. These items are on no order: %2$s. Please check this order.', 'wc-backorder-split' ),
+				$child_id ? $child_id : '-',
+				$listed
+			);
+		}
+		$order->add_order_note( $note );
+
+		self::log_error(
+			sprintf(
+				'Backorder split for order %d cannot be completed (%s): backorder order %d. Items: %s',
+				$order->get_id(),
+				'changed' === $reason ? 'the order no longer matches the plan' : 'the backorder order is missing',
+				$child_id,
+				$listed
+			)
+		);
+
+		do_action( 'wcbs_split_order_error', $order->get_id(), 'unrecoverable' );
+
+		self::clear_split( $order );
+	}
+
+	/**
+	 * Ask Action Scheduler to finish a split if this request does not.
+	 *
+	 * The ordinary triggers are the confirmation page and a payment status
+	 * change. Neither is guaranteed to happen again on an order whose request
+	 * died, so recovery cannot depend on them. Action Scheduler ships with
+	 * WooCommerce and survives the fatal that killed the request.
+	 *
+	 * Six minutes, which is past the five minute split lock, so the retry can
+	 * take a lock the dead request left behind.
+	 *
+	 * @since 2.4.4
+	 * @param int $order_id Source order id.
+	 * @return void
+	 */
+	private static function schedule_resume( $order_id ) {
+		if ( ! function_exists( 'as_schedule_single_action' ) ) {
+			return;
+		}
+
+		$args = array( (int) $order_id );
+
+		if ( function_exists( 'as_has_scheduled_action' ) && as_has_scheduled_action( 'wcbs_resume_split', $args, 'wc-backorder-split' ) ) {
+			return;
+		}
+
+		as_schedule_single_action( time() + 6 * MINUTE_IN_SECONDS, 'wcbs_resume_split', $args, 'wc-backorder-split' );
+	}
+
+	/**
+	 * Cancel the scheduled fallback for an order.
+	 *
+	 * @since 2.4.4
+	 * @param int $order_id Source order id.
+	 * @return void
+	 */
+	private static function unschedule_resume( $order_id ) {
+		if ( ! function_exists( 'as_unschedule_all_actions' ) ) {
+			return;
+		}
+
+		as_unschedule_all_actions( 'wcbs_resume_split', array( (int) $order_id ), 'wc-backorder-split' );
+	}
+
+	/**
+	 * Finish a split that an earlier request did not.
+	 *
+	 * @since 2.4.4
+	 * @param int $order_id Source order id.
+	 * @return void
+	 */
+	public static function resume_split( $order_id ) {
+		self::flush_order_cache( (int) $order_id );
+		self::split_backorder_products( (int) $order_id );
+	}
 	/**
 	 * Order status as stored in the database, bypassing every object cache.
 	 *
@@ -864,14 +1353,17 @@ class WC_Backorder_Split_Frontend {
 	 * paid. The "Items" meta is rewritten to list the backorder's own items.
 	 *
 	 * @since 2.4.0
-	 * @param WC_Order $source_order    The original order.
-	 * @param WC_Order $target_order    The backorder order.
-	 * @param array    $backorder_items The moved lines (item and quantity).
+	 * @param WC_Order $source_order The original order.
+	 * @param WC_Order $target_order The backorder order.
+	 * @param array    $plan_items   The planned lines (name and quantity). Taken
+	 *                               from the plan rather than from live items, so
+	 *                               it still works when a resume runs after the
+	 *                               source lines have gone.
 	 */
-	private static function copy_shipping_method_to_backorder( $source_order, $target_order, $backorder_items ) {
+	private static function copy_shipping_method_to_backorder( $source_order, $target_order, $plan_items ) {
 		$names = array();
-		foreach ( $backorder_items as $data ) {
-			$names[] = $data['item']->get_name() . ' &times; ' . wc_stock_amount( $data['quantity'] );
+		foreach ( $plan_items as $entry ) {
+			$names[] = $entry['name'] . ' &times; ' . wc_stock_amount( $entry['quantity'] );
 		}
 
 		foreach ( $source_order->get_items( 'shipping' ) as $shipping_item ) {

@@ -7,7 +7,6 @@
  * Version: 2.4.3
  * Requires at least: 6.5
  * Requires PHP: 8.1
- * Tested up to: 7.1.4
  * Author URI: https://www.wpheka.com
  * Text Domain: wc-backorder-split
  * Domain Path: /languages

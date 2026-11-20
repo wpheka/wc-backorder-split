@@ -44,3 +44,25 @@ function wcbs_t_simple( $name, $stock ) {
 	$p->set_status( 'publish' );
 	return $p->save();
 }
+
+/**
+ * Whether an order has a note containing a given string.
+ *
+ * @param int    $order_id Order id.
+ * @param string $needle   Text to look for.
+ * @return bool
+ */
+function wcbs_t_has_note( $order_id, $needle ) {
+	$args = array(
+		'order_id' => $order_id,
+		'limit'    => 50,
+	);
+
+	foreach ( wc_get_order_notes( $args ) as $note ) {
+		if ( false !== strpos( wp_strip_all_tags( $note->content ), $needle ) ) {
+			return true;
+		}
+	}
+
+	return false;
+}

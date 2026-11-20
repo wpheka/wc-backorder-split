@@ -91,6 +91,8 @@ echo "== split internals, admin and storage cases"
 run_php internals
 run_node admin.js
 STORAGE_NOW=$([ "$HPOS_BEFORE" = "yes" ] && echo hpos || echo legacy)
+echo "== interrupted splits are recoverable"
+run_php "$STORAGE_NOW" recovery.php
 echo "== Overview page"
 run_php "$STORAGE_NOW" overview.php
 run_node overview.js
@@ -98,6 +100,7 @@ RUN_TAG="bulk.js ($STORAGE_NOW)" run_node bulk.js "$STORAGE_NOW"
 if [ "$HPOS_BEFORE" = "yes" ]; then
   wp --path="$WP_PATH" option update woocommerce_custom_orders_table_enabled no >/dev/null 2>&1
   run_php legacy
+  run_php legacy recovery.php
   run_php legacy overview.php
   RUN_TAG="bulk.js (legacy)" run_node bulk.js legacy
   wp --path="$WP_PATH" option update woocommerce_custom_orders_table_enabled yes >/dev/null 2>&1
