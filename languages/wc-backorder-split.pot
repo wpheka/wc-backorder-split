@@ -2,14 +2,14 @@
 # This file is distributed under the GPLv3 or later.
 msgid ""
 msgstr ""
-"Project-Id-Version: WPHEKA Backorder Split 2.4.2\n"
+"Project-Id-Version: WPHEKA Backorder Split 2.4.4\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/wc-backorder-split\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-10T10:22:16+00:00\n"
+"POT-Creation-Date: 2026-11-24T12:44:00+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: wc-backorder-split\n"
@@ -77,26 +77,56 @@ msgstr ""
 msgid "five star"
 msgstr ""
 
-#: includes/class-wc-backorder-split-frontend.php:313
+#: includes/class-wc-backorder-split-frontend.php:424
 msgid "Backorder split"
 msgstr ""
 
 #. translators: %s: order number
-#: includes/class-wc-backorder-split-frontend.php:426
+#: includes/class-wc-backorder-split-frontend.php:665
+#, php-format
+msgid "A backorder split was interrupted and has been completed. Backorder items are on order #%s."
+msgstr ""
+
+#. translators: %s: order number
+#: includes/class-wc-backorder-split-frontend.php:672
+#, php-format
+msgid "This order was completed after an interrupted split of order #%s."
+msgstr ""
+
+#. translators: %s: order number
+#: includes/class-wc-backorder-split-frontend.php:680
 #, php-format
 msgid "Backorder items split into order #%s"
 msgstr ""
 
 #. translators: %s: order number
-#: includes/class-wc-backorder-split-frontend.php:433
+#: includes/class-wc-backorder-split-frontend.php:687
 #, php-format
 msgid "This order contains backordered items from order #%s"
 msgstr ""
 
 #. translators: %s: original order number
-#: includes/class-wc-backorder-split-frontend.php:441
+#: includes/class-wc-backorder-split-frontend.php:697
 #, php-format
 msgid "Shipping was charged on order #%s."
+msgstr ""
+
+#. translators: 1: backorder order number, 2: list of items
+#: includes/class-wc-backorder-split-frontend.php:1037
+#, php-format
+msgid "A backorder split could not be completed because this order was changed before it finished. Please compare this order with backorder order #%1$s. Items the split was moving: %2$s."
+msgstr ""
+
+#. translators: 1: backorder order number, 2: list of items
+#: includes/class-wc-backorder-split-frontend.php:1044
+#, php-format
+msgid "A backorder split could not be completed: order #%1$s is missing. These items are on no order: %2$s. Please check this order."
+msgstr ""
+
+#. translators: %d: number of attempts
+#: includes/class-wc-backorder-split-frontend.php:1145
+#, php-format
+msgid "A backorder split could not be finished after %d attempts. Please check this order and its backorder order. The split runs again on the next payment status change."
 msgstr ""
 
 #: includes/class-wc-backorder-split-overview.php:81
@@ -511,7 +541,7 @@ msgstr ""
 msgid "The minimum WooCommerce version required for this plugin is %1$s. You are running %2$s."
 msgstr ""
 
-#: includes/class-wc-backorder-split.php:274
+#: includes/class-wc-backorder-split.php:275
 msgid "Heads up!"
 msgstr ""
 

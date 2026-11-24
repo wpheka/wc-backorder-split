@@ -78,7 +78,7 @@ function wcbs_t_child_count( $order_id ) {
  * @param array $lines array( array( product id, stock at add, quantity ), ... ).
  * @return int Order id.
  */
-function wcbs_t_backorder_order( $lines ) {
+function wcbs_t_backorder_order( $lines, $shipping = false ) {
 	$order = wc_create_order();
 	$order->set_billing_email( 'zz-wcbs-recovery@example.invalid' );
 	$order->set_billing_first_name( 'Zz' );
@@ -94,6 +94,14 @@ function wcbs_t_backorder_order( $lines ) {
 			$item->add_meta_data( '_stock_quantity_at_add', $stock, true );
 			$item->save();
 		}
+	}
+
+	if ( $shipping ) {
+		$ship = new WC_Order_Item_Shipping();
+		$ship->set_method_title( 'ZZ Flat rate' );
+		$ship->set_method_id( 'flat_rate' );
+		$ship->set_total( 7 );
+		$order->add_item( $ship );
 	}
 
 	$order->calculate_totals();
@@ -251,7 +259,7 @@ try {
 	// Interrupted after the source is reduced, before the backorder order is
 	// finished. The lines are all in the right place; the child is not yet
 	// presentable.
-	$oid3   = wcbs_t_backorder_order( array( array( $ids['s1'], 1, 3 ) ) );
+	$oid3   = wcbs_t_backorder_order( array( array( $ids['s1'], 1, 3 ) ), true );
 	$made[] = $oid3;
 
 	wcbs_t_split_dying_at( $oid3, 'finishing' );
@@ -270,8 +278,9 @@ try {
 	$child3 = $cid3 ? wc_get_order( $cid3 ) : null;
 
 	wcbs_t_result( "$label: the retry finishes a backorder order left unfinished", $child3 && 'backordered' === $child3->get_status() && array( 'ZZ WCBS Stock1' => 2 ) === wcbs_t_items( $child3 ), $child3 ? $child3->get_status() . ' ' . wp_json_encode( wcbs_t_items( $child3 ) ) : 'no child' );
-	wcbs_t_result( "$label: the retry does not double the shipping line", $child3 && count( $child3->get_items( 'shipping' ) ) <= 1, $child3 ? count( $child3->get_items( 'shipping' ) ) . ' shipping lines' : 'no child' );
-	wcbs_t_result( "$label: totals are right after an unfinished backorder order is completed", '10.00' === $src3->get_total() && $child3 && '20.00' === $child3->get_total(), 'source ' . $src3->get_total() . ', child ' . ( $child3 ? $child3->get_total() : '-' ) );
+	$ship3 = $child3 ? array_values( $child3->get_items( 'shipping' ) ) : array();
+	wcbs_t_result( "$label: the retry gives the backorder order the shipping method once, at no cost", 1 === count( $ship3 ) && 'ZZ Flat rate' === $ship3[0]->get_method_title() && 0.0 === (float) $ship3[0]->get_total(), $child3 ? count( $ship3 ) . ' shipping lines' . ( $ship3 ? ', ' . $ship3[0]->get_method_title() . ' at ' . $ship3[0]->get_total() : '' ) : 'no child' );
+	wcbs_t_result( "$label: totals are right after an unfinished backorder order is completed", '17.00' === $src3->get_total() && $child3 && '20.00' === $child3->get_total(), 'source ' . $src3->get_total() . ', child ' . ( $child3 ? $child3->get_total() : '-' ) );
 
 	// ------------------------------------------------------------------ 4
 	// The lines moved and the order holding them is gone. This cannot be
@@ -323,6 +332,95 @@ try {
 	wcbs_t_result( "$label: an order edited before the retry is reported as changed, not as a loss", wcbs_t_has_note( $oid4b, 'was changed before it finished' ) && ! wcbs_t_has_note( $oid4b, 'is missing' ), 'the note does not say the order changed' );
 	wcbs_t_result( "$label: the changed-order note names the backorder order to compare", $cid4b && wcbs_t_has_note( $oid4b, '#' . $cid4b ), 'no order number in the note' );
 	wcbs_t_result( "$label: a split that no longer matches its order stops retrying", '' === wcbs_t_stored_state( $oid4b ), 'state is still ' . wcbs_t_stored_state( $oid4b ) );
+
+	// ------------------------------------------------------------------ 4c
+	// A line the retry would reduce was edited in between (3 to 4 units). The
+	// retry must not write its planned quantity over the merchant's edit.
+	$oid4c  = wcbs_t_backorder_order(
+		array(
+			array( $ids['s1'], 1, 3 ),
+			array( $ids['s5'], 0, 2 ),
+		)
+	);
+	$made[] = $oid4c;
+
+	wcbs_t_split_dying_at( $oid4c, 'cloning' );
+
+	$src4c  = wc_get_order( $oid4c );
+	$made[] = (int) $src4c->get_meta( '_wcbs_backorder_id' );
+	foreach ( $src4c->get_items( 'line_item' ) as $item ) {
+		if ( 'ZZ WCBS Stock1' === $item->get_name() ) {
+			$item->set_quantity( 4 );
+			$item->save();
+		}
+	}
+
+	WC_Backorder_Split_Frontend::split_backorder_products( $oid4c );
+
+	$src4c = wc_get_order( $oid4c );
+	wcbs_t_result( "$label: a quantity edited before the retry is kept, not overwritten", 4 === (int) ( wcbs_t_items( $src4c )['ZZ WCBS Stock1'] ?? 0 ), wp_json_encode( wcbs_t_items( $src4c ) ) );
+	wcbs_t_result( "$label: a quantity edited before the retry is reported as a changed order", wcbs_t_has_note( $oid4c, 'was changed before it finished' ), 'no changed-order note' );
+
+	// ------------------------------------------------------------------ 4d
+	// WooCommerce swallows an error raised while the backorder order is saved
+	// with its status. The split must not count that as done.
+	$oid4d  = wcbs_t_backorder_order( array( array( $ids['s1'], 1, 3 ) ) );
+	$made[] = $oid4d;
+
+	$swallowed = function ( $o ) use ( $oid4d ) {
+		if ( (int) $o->get_meta( '_wcbs_parent_order_id' ) === (int) $oid4d && 'backordered' === $o->get_status() ) {
+			throw new Exception( 'injected failure saving the backorder order' );
+		}
+	};
+	add_action( 'woocommerce_before_order_object_save', $swallowed, 10, 1 );
+	WC_Backorder_Split_Frontend::split_backorder_products( $oid4d );
+	remove_action( 'woocommerce_before_order_object_save', $swallowed, 10 );
+
+	$made[] = (int) wc_get_order( $oid4d )->get_meta( '_wcbs_backorder_id' );
+	wcbs_t_result( "$label: a backorder order that was not saved keeps the split unfinished", '' !== wcbs_t_stored_state( $oid4d ), 'state cleared although the backorder order was never saved with its status' );
+
+	WC_Backorder_Split_Frontend::split_backorder_products( $oid4d );
+	$cid4d = (int) wc_get_order( $oid4d )->get_meta( '_wcbs_backorder_id' );
+	wcbs_t_result( "$label: the retry then finishes it", '' === wcbs_t_stored_state( $oid4d ) && $cid4d && 'backordered' === wc_get_order( $cid4d )->get_status(), 'state ' . wcbs_t_stored_state( $oid4d ) );
+
+	// ------------------------------------------------------------------ 4e
+	// The scheduled retry fails again (a passing error). It must queue the
+	// next attempt itself, count it, and stop after the limit with a note.
+	if ( function_exists( 'as_get_scheduled_actions' ) ) {
+		$pending = function ( $oid ) {
+			return count( as_get_scheduled_actions( array( 'hook' => 'wcbs_resume_split', 'args' => array( (int) $oid ), 'group' => 'wc-backorder-split', 'status' => ActionScheduler_Store::STATUS_PENDING, 'per_page' => 20 ), 'ids' ) );
+		};
+		$oid4e  = wcbs_t_backorder_order( array( array( $ids['s1'], 1, 3 ) ) );
+		$made[] = $oid4e;
+
+		wcbs_t_split_dying_at( $oid4e, 'finishing' );
+		$made[] = (int) wc_get_order( $oid4e )->get_meta( '_wcbs_backorder_id' );
+		$before = $pending( $oid4e );
+
+		$again = function () {
+			throw new Exception( 'injected passing failure in the scheduled retry' );
+		};
+		add_filter( 'wcbs_copy_charges_to_backorder', $again, 10, 1 );
+		WC_Backorder_Split_Frontend::resume_split( $oid4e );
+		remove_filter( 'wcbs_copy_charges_to_backorder', $again, 10 );
+
+		wcbs_t_result( "$label: a scheduled retry that fails queues the next attempt", $pending( $oid4e ) === $before + 1 && 1 === (int) wc_get_order( $oid4e )->get_meta( '_wcbs_split_attempts' ), 'pending ' . $before . ' then ' . $pending( $oid4e ) . ', attempts ' . wc_get_order( $oid4e )->get_meta( '_wcbs_split_attempts' ) );
+
+		$o4e = wc_get_order( $oid4e );
+		$o4e->update_meta_data( '_wcbs_split_attempts', 4 );
+		$o4e->save();
+		$before = $pending( $oid4e );
+		add_filter( 'wcbs_copy_charges_to_backorder', $again, 10, 1 );
+		WC_Backorder_Split_Frontend::resume_split( $oid4e );
+		remove_filter( 'wcbs_copy_charges_to_backorder', $again, 10 );
+
+		wcbs_t_result( "$label: after the last attempt it stops retrying and says so", $pending( $oid4e ) === $before && wcbs_t_has_note( $oid4e, 'could not be finished after 5 attempts' ), 'pending ' . $before . ' then ' . $pending( $oid4e ) );
+
+		WC_Backorder_Split_Frontend::resume_split( $oid4e );
+		wcbs_t_result( "$label: a retry that succeeds clears the attempt count and the queue", '' === wcbs_t_stored_state( $oid4e ) && '' === (string) wc_get_order( $oid4e )->get_meta( '_wcbs_split_attempts' ) && 0 === $pending( $oid4e ), 'state ' . wcbs_t_stored_state( $oid4e ) . ', pending ' . $pending( $oid4e ) );
+	} else {
+		wcbs_t_result( "$label: Action Scheduler is available for the retry cases", false, 'as_get_scheduled_actions missing' );
+	}
 
 	// ------------------------------------------------------------------ 5
 	// An ordinary split is unchanged: one pass, the original note, no leftovers.

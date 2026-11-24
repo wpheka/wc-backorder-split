@@ -3,10 +3,10 @@ Contributors: wpheka, akshayaswaroop
 Tags: backorder, backorder split, order split, partial shipment, woocommerce
 Requires at least: 6.5
 Requires PHP: 8.1
-Tested up to: 7.1.4
+Tested up to: 7.1.5
 WC requires at least: 4.2
-WC tested up to: 11.2.1
-Stable tag: 2.4.3
+WC tested up to: 11.3.1
+Stable tag: 2.4.4
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 Donate link: https://www.paypal.me/AKSHAYASWAROOP
@@ -86,6 +86,11 @@ Under WPHEKA > Backorder Split: orders split, orders backordered now, backorders
 2. WPHEKA > Backorder Split: how many orders have been split, what is backordered now and what moved, with no settings to configure.
 
 == Changelog ==
+
+= 2.4.4 - 2026-11-24 =
+* Fix - A split that was interrupted part way, by a timeout, a PHP error or a database problem, is now finished instead of lost. Before, the backordered items left the original order before the backorder order existed, so a failure in between left items the customer paid for on no order, and nothing repaired it. The split now records what it is about to do, creates the backorder order first, and finishes from where it stopped on the next attempt or through scheduled retries, the first a few minutes later.
+* Fix - An order note says when a split was interrupted and completed, and when it could not be: the backorder order was deleted, the order was edited before the split finished, or five scheduled retries did not finish it. An edit made in between is never overwritten.
+* Update - Tested up to WordPress 7.1.5 and WooCommerce 11.3.1.
 
 = 2.4.3 - 2026-11-11 =
 * Fix - An order still waiting for payment when its confirmation page loads (redirect and offsite gateways) is no longer split there. It stays whole, so a failed and retried payment pays the full amount. It splits once the order is paid (processing or completed), also when you confirm it yourself in wp-admin.

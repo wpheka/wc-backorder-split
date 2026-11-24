@@ -360,13 +360,16 @@ class WC_Backorder_Split_Frontend {
 				 * quantities and totals it holds are the ones the order had
 				 * before the split started.
 				 */
+				// The fallback is scheduled before the plan is saved. Saving
+				// first left a gap: a request dying between the two kept a plan
+				// that nothing would ever run. Scheduled first, a request dying
+				// before the plan is saved costs only a retry that finds no plan
+				// and splits the order the ordinary way.
+				self::schedule_resume( $order_id );
+
 				$order->update_meta_data( self::PLAN_META, $plan );
 				$order->update_meta_data( self::STATE_META, self::STATE_PLANNED );
 				$order->save();
-
-				// A crash from here on cannot rely on another page load for this
-				// order, so a scheduled action picks it up instead.
-				self::schedule_resume( $order_id );
 			}
 
 			self::run_split( $order, $plan, $resuming );
@@ -542,6 +545,24 @@ class WC_Backorder_Split_Frontend {
 		 * gives the same answer however many times it runs.
 		 */
 		if ( ! self::state_at_least( $state, self::STATE_SOURCE_UPDATED ) ) {
+			// Check every line before changing any, so an order edited since the
+			// plan was made is reported, not partly rewritten.
+			foreach ( $plan['items'] as $entry ) {
+				$item_id = (int) $entry['item_id'];
+				if ( ! isset( $entry['orig_qty'] ) || empty( $source_items[ $item_id ] ) ) {
+					continue;
+				}
+				$now      = (float) $source_items[ $item_id ]->get_quantity();
+				$expected = array( (float) $entry['orig_qty'] );
+				if ( 'reduce' === $entry['source'] ) {
+					$expected[] = (float) $entry['new_qty'];
+				}
+				if ( ! in_array( $now, $expected, true ) ) {
+					self::report_unrecoverable( $order, $plan, 'changed' );
+					return;
+				}
+			}
+
 			foreach ( $plan['items'] as $entry ) {
 				$item_id = (int) $entry['item_id'];
 
@@ -606,12 +627,25 @@ class WC_Backorder_Split_Frontend {
 		$backorder_order->save();
 
 		/*
+		 * WooCommerce can catch an error raised during save() and carry on, so a
+		 * save that did not happen looks like one that did. The plan is only
+		 * cleared once the backorder order is stored with its status; otherwise
+		 * the state stays and the scheduled retry finishes the job.
+		 */
+		$want_status = 0 === strpos( (string) $backorder_status, 'wc-' ) ? substr( (string) $backorder_status, 3 ) : (string) $backorder_status;
+		if ( self::stored_status( $backorder_order->get_id() ) !== $want_status ) {
+			self::log_error( 'Backorder order ' . $backorder_order->get_id() . ' for order ' . $order_id . ' was not saved with its status; the split will be retried.' );
+			return;
+		}
+
+		/*
 		 * 8. Finished. The plan and the state go, which is what tells every
 		 * later request that this order is done, and the scheduled fallback is
 		 * cancelled.
 		 */
 		$order->delete_meta_data( self::PLAN_META );
 		$order->delete_meta_data( self::STATE_META );
+		$order->delete_meta_data( self::ATTEMPTS_META );
 		$order->delete_meta_data( '_wcbs_awaiting_payment' );
 
 		/*
@@ -695,6 +729,16 @@ class WC_Backorder_Split_Frontend {
 	const STATE_SOURCE_UPDATED = 'source_updated';
 
 	/**
+	 * Order meta counting scheduled retries of an unfinished split.
+	 */
+	const ATTEMPTS_META = '_wcbs_split_attempts';
+
+	/**
+	 * Scheduled retries before the split stops retrying and asks for a look.
+	 */
+	const MAX_ATTEMPTS = 5;
+
+	/**
 	 * How far an unfinished split got, or '' when there is none.
 	 *
 	 * @since 2.4.4
@@ -728,6 +772,7 @@ class WC_Backorder_Split_Frontend {
 	private static function clear_split( $order ) {
 		$order->delete_meta_data( self::PLAN_META );
 		$order->delete_meta_data( self::STATE_META );
+		$order->delete_meta_data( self::ATTEMPTS_META );
 		$order->save();
 		self::unschedule_resume( $order->get_id() );
 	}
@@ -861,6 +906,11 @@ class WC_Backorder_Split_Frontend {
 				'new_subtotal' => 0,
 				'new_total'    => 0,
 				'new_reduced'  => null,
+				// The line's quantity when the plan was made. A retry changes the
+				// source only while each line is at this quantity or already at
+				// the planned one, so a merchant's edit in between is never
+				// overwritten.
+				'orig_qty'     => (float) $data['item']->get_quantity(),
 			);
 
 			if ( isset( $source_items_to_update[ $item_id ] ) ) {
@@ -1065,8 +1115,44 @@ class WC_Backorder_Split_Frontend {
 	 * @return void
 	 */
 	public static function resume_split( $order_id ) {
-		self::flush_order_cache( (int) $order_id );
-		self::split_backorder_products( (int) $order_id );
+		$order_id = (int) $order_id;
+
+		self::flush_order_cache( $order_id );
+		self::split_backorder_products( $order_id );
+
+		// Finished, cleared or reported: nothing left to retry.
+		self::flush_order_cache( $order_id );
+		$order = wc_get_order( $order_id );
+		if ( ! $order || '' === self::split_state( $order ) ) {
+			return;
+		}
+
+		/*
+		 * Still unfinished: a passing failure, or another request held the lock.
+		 * This one-off action is spent, so the next attempt is queued here, later
+		 * each time. schedule_resume() is not used, because Action Scheduler
+		 * reports the action now running as still scheduled and the new one
+		 * would never be queued.
+		 */
+		$attempts = (int) $order->get_meta( self::ATTEMPTS_META ) + 1;
+		$order->update_meta_data( self::ATTEMPTS_META, $attempts );
+		$order->save();
+
+		if ( $attempts >= self::MAX_ATTEMPTS ) {
+			$order->add_order_note(
+				sprintf(
+					/* translators: %d: number of attempts */
+					__( 'A backorder split could not be finished after %d attempts. Please check this order and its backorder order. The split runs again on the next payment status change.', 'wc-backorder-split' ),
+					$attempts
+				)
+			);
+			self::log_error( 'Backorder split for order ' . $order_id . ' is still unfinished after ' . $attempts . ' scheduled attempts; no further retry is scheduled.' );
+			return;
+		}
+
+		if ( function_exists( 'as_schedule_single_action' ) ) {
+			as_schedule_single_action( time() + ( $attempts + 1 ) * 6 * MINUTE_IN_SECONDS, 'wcbs_resume_split', array( $order_id ), 'wc-backorder-split' );
+		}
 	}
 	/**
 	 * Order status as stored in the database, bypassing every object cache.
