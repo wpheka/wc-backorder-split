@@ -80,6 +80,14 @@ async function place(page, mode, cart) {
     await page.waitForLoadState('networkidle');
     const cod = page.locator('input[value="cod"]');
     if (await cod.count()) await cod.check({ force: true });
+    // Leave the last field before placing the order. Since WooCommerce 11.3 the click
+    // itself moves focus out of the address field, that starts an address update (4 to
+    // 8 seconds here), and a click landing while it runs is dropped: no order, no notice.
+    // So blur first, give the update time to start, then wait until the checkout has
+    // finished calculating and the network is quiet, as a customer who paused would.
+    await page.evaluate(() => { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); });
+    await page.waitForTimeout(1500);
+    await page.waitForFunction(() => !(window.wp && wp.data && wp.data.select('wc/store/checkout').isCalculating()), null, { timeout: 30000 });
     await page.waitForLoadState('networkidle');
     await page.locator('.wc-block-components-checkout-place-order-button').click();
     // If the total still changed under the click, WooCommerce shows the notice and
